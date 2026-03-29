@@ -18,6 +18,7 @@ import { useCanvasStore } from "@/lib/store/canvas-store";
 import { ChatNode } from "@/components/canvas/ChatNode";
 import { ProjectHeader } from "@/components/canvas/ProjectHeader";
 import { AVAILABLE_MODELS } from "@/types/canvas";
+import { syncInsertEdge } from "@/lib/supabase/sync";
 
 const nodeTypes = {
   chat: ChatNode,
@@ -64,11 +65,12 @@ export function CanvasEditor() {
         );
       if (exists) return;
 
+      const edgeId = `${connection.source}-${connection.sourceHandle}-${connection.target}-${connection.targetHandle}`;
       useCanvasStore.setState((state) => ({
         edges: [
           ...state.edges,
           {
-            id: `${connection.source}-${connection.sourceHandle}-${connection.target}-${connection.targetHandle}`,
+            id: edgeId,
             source: connection.source!,
             sourceHandle: connection.sourceHandle,
             target: connection.target!,
@@ -85,6 +87,19 @@ export function CanvasEditor() {
           },
         ],
       }));
+
+      // Sync to DB
+      const projectId = useCanvasStore.getState().projectId;
+      if (projectId) {
+        syncInsertEdge(
+          projectId,
+          edgeId,
+          connection.source!,
+          connection.target!,
+          connection.sourceHandle ?? null,
+          connection.targetHandle ?? null
+        );
+      }
     },
     [isValidConnection]
   );

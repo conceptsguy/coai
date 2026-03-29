@@ -14,6 +14,16 @@ import {
   type EdgeChange,
 } from "@xyflow/react";
 import { v4 as uuid } from "uuid";
+import {
+  syncNodePosition,
+  syncNodeTitle,
+  syncNodeSummary,
+  syncInsertNode,
+  syncDeleteNode,
+  syncInsertMessage,
+  syncProjectTitle,
+  syncProjectPurpose,
+} from "@/lib/supabase/sync";
 
 interface CanvasState {
   nodes: ChatFlowNode[];
@@ -21,6 +31,16 @@ interface CanvasState {
   selectedNodeId: string | null;
   sidebarOpen: boolean;
   project: ProjectMetadata;
+  projectId: string | null;
+  hydrated: boolean;
+
+  // Hydration
+  hydrateFromServer: (data: {
+    projectId: string;
+    project: ProjectMetadata;
+    nodes: ChatFlowNode[];
+    edges: ConnectionEdge[];
+  }) => void;
 
   // Node actions
   addChatNode: (position: { x: number; y: number }, modelConfig: ModelConfig) => string;
@@ -53,12 +73,36 @@ interface CanvasState {
   closeSidebar: () => void;
 }
 
+// Debounce helper for position syncs
+let positionTimers: Record<string, ReturnType<typeof setTimeout>> = {};
+function debouncedPositionSync(nodeId: string, x: number, y: number) {
+  clearTimeout(positionTimers[nodeId]);
+  positionTimers[nodeId] = setTimeout(() => {
+    syncNodePosition(nodeId, x, y);
+  }, 500);
+}
+
+let projectTitleTimer: ReturnType<typeof setTimeout>;
+let projectPurposeTimer: ReturnType<typeof setTimeout>;
+
 export const useCanvasStore = create<CanvasState>((set, get) => ({
   nodes: [],
   edges: [],
   selectedNodeId: null,
   sidebarOpen: false,
   project: { title: "Untitled Project", purpose: "" },
+  projectId: null,
+  hydrated: false,
+
+  hydrateFromServer: (data) => {
+    set({
+      projectId: data.projectId,
+      project: data.project,
+      nodes: data.nodes,
+      edges: data.edges,
+      hydrated: true,
+    });
+  },
 
   addChatNode: (position, modelConfig) => {
     const id = uuid();
@@ -78,6 +122,22 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       },
     };
     set((state) => ({ nodes: [...state.nodes, newNode] }));
+
+    // Sync to DB
+    const projectId = get().projectId;
+    if (projectId) {
+      syncInsertNode(
+        projectId,
+        id,
+        newNode.data.title,
+        modelConfig.provider,
+        modelConfig.modelId,
+        modelConfig.label,
+        position.x,
+        position.y
+      );
+    }
+
     return id;
   },
 
@@ -92,6 +152,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       sidebarOpen:
         state.selectedNodeId === nodeId ? false : state.sidebarOpen,
     }));
+
+    // Sync to DB (cascade deletes edges and messages)
+    syncDeleteNode(nodeId);
   },
 
   toggleNodeCollapsed: (nodeId) => {
@@ -114,6 +177,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         n.id === nodeId ? { ...n, data: { ...n.data, title } } : n
       ),
     }));
+
+    // Sync to DB
+    syncNodeTitle(nodeId, title);
   },
 
   addMessage: (nodeId, message) => {
@@ -134,6 +200,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           : n
       ),
     }));
+
+    // Sync to DB
+    if (get().projectId) {
+      syncInsertMessage(nodeId, message.id, message.role, message.content);
+    }
   },
 
   updateLastAssistantMessage: (nodeId, content) => {
@@ -155,9 +226,13 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         };
       }),
     }));
+    // Note: we don't sync partial streaming updates — the final message
+    // is synced via addMessage in the onFinish callback
   },
 
   updateNodeSummary: (nodeId, summary) => {
+    const messageCount =
+      get().nodes.find((n) => n.id === nodeId)?.data.messages.length ?? 0;
     set((state) => ({
       nodes: state.nodes.map((n) =>
         n.id === nodeId
@@ -166,17 +241,19 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
               data: {
                 ...n.data,
                 summary,
-                summaryMessageCount: n.data.messages.length,
+                summaryMessageCount: messageCount,
               },
             }
           : n
       ),
     }));
+
+    // Sync to DB
+    syncNodeSummary(nodeId, summary, messageCount);
   },
 
   getConnectedContexts: (nodeId) => {
     const { edges, nodes } = get();
-    // Find all edges where this node is the TARGET (incoming connections)
     const incomingEdges = edges.filter((e) => e.target === nodeId);
     const contexts: ConnectedContext[] = [];
 
@@ -202,6 +279,21 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set((state) => ({
       nodes: applyNodeChanges(changes, state.nodes) as ChatFlowNode[],
     }));
+
+    // Sync position changes (debounced)
+    for (const change of changes) {
+      if (
+        change.type === "position" &&
+        change.position &&
+        !change.dragging
+      ) {
+        debouncedPositionSync(
+          change.id,
+          change.position.x,
+          change.position.y
+        );
+      }
+    }
   },
 
   onEdgesChange: (changes) => {
@@ -212,10 +304,28 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   updateProjectTitle: (title) => {
     set((state) => ({ project: { ...state.project, title } }));
+
+    // Debounced sync
+    const projectId = get().projectId;
+    if (projectId) {
+      clearTimeout(projectTitleTimer);
+      projectTitleTimer = setTimeout(() => {
+        syncProjectTitle(projectId, title);
+      }, 2000);
+    }
   },
 
   updateProjectPurpose: (purpose) => {
     set((state) => ({ project: { ...state.project, purpose } }));
+
+    // Debounced sync
+    const projectId = get().projectId;
+    if (projectId) {
+      clearTimeout(projectPurposeTimer);
+      projectPurposeTimer = setTimeout(() => {
+        syncProjectPurpose(projectId, purpose);
+      }, 2000);
+    }
   },
 
   openSidebar: (nodeId) => {
