@@ -75,7 +75,8 @@ src/
 └── types/canvas.ts                 # ChatNodeData, ChatFlowNode, ModelConfig, etc.
 
 doc/
-└── adr/                             # Architecture Decision Records (see below)
+├── adr/                             # Architecture Decision Records (see below)
+└── design.md                        # Design system — colors, typography, spacing, patterns
 
 supabase/
 └── migrations/
@@ -104,6 +105,17 @@ Current ADRs:
 - **0008** — Compact Card Nodes with Sidebar Drawer
 - **0009** — Debounced Position and Metadata Sync
 - **0010** — Email/Password Auth via Supabase
+
+## Design System
+
+All visual decisions are documented in `doc/design.md`. Key rules:
+- **Dark mode default** — canvas tool aesthetic, not consumer app
+- **Canvas is the hero** — chrome recedes, toolbars float, panels are collapsible
+- **Color means something** — blue=interactive, orange=source handle, green=presence, red=destructive. No decorative color.
+- **Compact density** — `text-sm` max on canvas, `gap-2` default, truncate aggressively
+- **No AI slop** — no purple gradients, no glassmorphism, no bouncy animations, no chat-app aesthetics
+
+Read `doc/design.md` before making any visual changes.
 
 ## Key Patterns
 
