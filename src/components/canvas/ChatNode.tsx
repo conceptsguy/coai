@@ -197,7 +197,9 @@ function ChatNodeComponent({ id, data }: NodeProps<ChatFlowNode>) {
 
   return (
     <div
-      className="relative bg-card border-2 rounded-lg px-3 py-2 shadow-sm cursor-pointer min-w-[180px] hover:shadow-md transition-shadow"
+      className={`relative bg-card rounded-md px-3 py-2 shadow-sm cursor-pointer min-w-[180px] hover:shadow-md transition-shadow ${
+        viewers.length > 0 ? "border-2" : "border"
+      }`}
       style={{
         borderColor: viewers.length > 0 ? viewers[0].color : "var(--border)",
       }}

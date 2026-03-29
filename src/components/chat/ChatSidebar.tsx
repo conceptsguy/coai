@@ -7,7 +7,7 @@ import { DefaultChatTransport } from "ai";
 import { v4 as uuid } from "uuid";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
+import { X, ArrowUp } from "lucide-react";
 import { ModelSelector } from "@/components/chat/ModelSelector";
 import type { ConnectedContext } from "@/types/canvas";
 import { syncInsertMessage } from "@/lib/supabase/sync";
@@ -46,14 +46,14 @@ function EditableSidebarTitle({ nodeId, title }: { nodeId: string; title: string
           if (e.key === "Enter") commit();
           if (e.key === "Escape") { setEditValue(title); setIsEditing(false); }
         }}
-        className="font-semibold text-sm bg-transparent border-b border-primary/40 outline-none"
+        className="font-semibold text-sm bg-transparent border-b border-primary/40 outline-none flex-1 min-w-0"
       />
     );
   }
 
   return (
     <h2
-      className="font-semibold text-sm cursor-text"
+      className="font-semibold text-sm cursor-text truncate"
       onClick={() => setIsEditing(true)}
     >
       {title}
@@ -119,6 +119,8 @@ export function ChatSidebar() {
     sidebarOpen,
     closeSidebar,
     getConnectedContexts,
+    _pendingFirstMessage,
+    setPendingFirstMessage,
   } = useCanvasStore();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
@@ -206,6 +208,32 @@ export function ChatSidebar() {
     }
   }, [selectedNodeId]);
 
+  // Handle pending first message from BottomInput
+  useEffect(() => {
+    if (!_pendingFirstMessage || !selectedNodeId || !sidebarOpen) return;
+
+    const content = _pendingFirstMessage;
+    setPendingFirstMessage(null);
+
+    const msgId = uuid();
+
+    // Write user message to Yjs
+    useCanvasStore.getState().addMessage(selectedNodeId, {
+      id: msgId,
+      role: "user",
+      content,
+      createdAt: new Date().toISOString(),
+    });
+
+    // Write to Supabase
+    syncInsertMessage(selectedNodeId, msgId, "user", content);
+
+    // Guard this node during streaming
+    useCanvasStore.getState().setStreamingNodeId(selectedNodeId);
+
+    sendMessage({ text: content });
+  }, [selectedNodeId, sidebarOpen, _pendingFirstMessage]);
+
   // Auto-scroll to bottom
   useEffect(() => {
     if (scrollRef.current) {
@@ -248,23 +276,13 @@ export function ChatSidebar() {
   if (!sidebarOpen || !selectedNode) return null;
 
   return (
-    <div className="w-[420px] h-full border-l border-border bg-card flex flex-col shadow-lg">
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <EditableSidebarTitle nodeId={selectedNode.id} title={selectedNode.data.title} />
-          <Badge variant="secondary" className="text-[10px]">
-            {selectedNode.data.modelConfig.label}
-          </Badge>
-        </div>
-        <Button variant="ghost" size="sm" onClick={closeSidebar} className="h-7 w-7 p-0">
-          ✕
+    <div className="w-[420px] h-full border-l border-border bg-card flex flex-col shrink-0">
+      {/* Header — title + close */}
+      <div className="px-3 py-2 border-b border-border flex items-center justify-between gap-2">
+        <EditableSidebarTitle nodeId={selectedNode.id} title={selectedNode.data.title} />
+        <Button variant="ghost" size="icon-xs" onClick={closeSidebar} className="h-7 w-7 shrink-0">
+          <X className="h-3.5 w-3.5" />
         </Button>
-      </div>
-
-      {/* Model selector */}
-      <div className="px-4 py-2 border-b border-border">
-        <ModelSelector nodeId={selectedNode.id} />
       </div>
 
       {/* Connected context indicator */}
@@ -333,20 +351,38 @@ export function ChatSidebar() {
         </div>
       </div>
 
-      {/* Input */}
-      <div className="px-4 py-3 border-t border-border">
-        <form onSubmit={onSubmit} className="flex gap-2">
-          <Textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type a message..."
-            className="min-h-[40px] max-h-[120px] resize-none text-sm"
-            rows={1}
-          />
-          <Button type="submit" size="sm" disabled={isLoading || !input.trim()}>
-            Send
-          </Button>
+      {/* Bottom section — model selector + input */}
+      <div className="border-t border-border">
+        {/* Model selector */}
+        <div className="px-3 py-2">
+          <ModelSelector nodeId={selectedNode.id} />
+        </div>
+
+        {/* Input */}
+        <form onSubmit={onSubmit} className="px-3 pb-3">
+          <div className="relative">
+            <Textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Type a message..."
+              className="min-h-[72px] max-h-[200px] resize-none text-sm pr-12 rounded-lg"
+              rows={3}
+            />
+            <Button
+              type="submit"
+              size="icon-xs"
+              disabled={isLoading || !input.trim()}
+              className="absolute right-2 bottom-2 h-7 w-7 rounded-md"
+            >
+              <ArrowUp className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          <div className="flex items-center justify-between mt-1">
+            <span className="text-[10px] text-muted-foreground">
+              Enter to send &middot; Shift+Enter for newline
+            </span>
+          </div>
         </form>
       </div>
     </div>

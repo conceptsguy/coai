@@ -9,7 +9,7 @@ Coai is a canvas tool, not a chat app or a dashboard. The UI should feel like **
 ## Principles
 
 1. **Canvas is the hero.** Every pixel of chrome competes with the workspace. Toolbars, sidebars, and controls should recede until needed.
-2. **Dark mode default.** This is a creative tool for professionals. Dark backgrounds reduce eye strain during long sessions and let colored node handles, edges, and presence indicators pop.
+2. **Light mode default, dark mode available.** Light is the professional default for modern AI tools (Figma, Linear, Spline). Dark mode is a toggle away for those who prefer it. Both modes must be tested equally.
 3. **Quiet chrome, loud content.** Borders should be barely visible. Backgrounds should differ by 1-2 lightness steps, not by color. Reserve color for meaning: connection state, presence, model identity.
 4. **Density over decoration.** Show more nodes on screen, not bigger cards. Compact is a feature. Information density beats empty space — but spacing must be precise.
 5. **Tool-grade, not consumer-grade.** No rounded-everything, no gradient buttons, no playful bouncy animations. Sharp, precise, utilitarian. Think instrument panel, not landing page.
@@ -18,19 +18,25 @@ Coai is a canvas tool, not a chat app or a dashboard. The UI should feel like **
 
 ## Color
 
-### Dark mode palette (primary)
+### Color palettes
 
-Built on OKLCH for perceptual uniformity. The palette is neutral with intentional color reserved for interactive state.
+Built on OKLCH for perceptual uniformity. The palette is neutral with intentional color reserved for interactive state. Both modes are defined in `globals.css` — `:root` for light, `.dark` for dark.
 
-| Token | Current Value | Role |
-|-------|--------------|------|
+**Light mode (default):**
+
+| Token | Value | Role |
+|-------|-------|------|
+| `--background` | `oklch(1 0 0)` | Canvas and page background (white) |
+| `--card` | `oklch(0.995 0 0)` | Floating panels, node cards, sidebar (barely off-white) |
+| `--border` | `oklch(0.922 0 0)` | Borders — light gray, structural |
+
+**Dark mode:**
+
+| Token | Value | Role |
+|-------|-------|------|
 | `--background` | `oklch(0.145 0 0)` | Canvas and page background |
-| `--card` | `oklch(0.2 0 0)` | Floating panels, node cards, sidebar |
-| `--muted` | `oklch(0.3 0 0)` | Input backgrounds, secondary surfaces |
-| `--border` | `oklch(0.25 0 0)` | Borders — barely visible, structural only |
-| `--foreground` | `oklch(0.985 0 0)` | Primary text |
-| `--muted-foreground` | `oklch(0.7 0 0)` | Secondary text, labels, timestamps |
-| `--primary` | `oklch(0.64 0.208 258.852)` | Interactive blue — links, focus rings, selected state |
+| `--card` | `oklch(0.205 0 0)` | Floating panels, node cards, sidebar |
+| `--border` | `oklch(1 0 0 / 10%)` | Borders — barely visible, structural only |
 
 ### Semantic color
 
@@ -150,9 +156,11 @@ The most important visual element. Must be:
 
 Follow the Figma/Spline pattern: **floating, minimal, translucent.**
 
-- ReactFlow controls: position bottom-left, `bg-card/80 backdrop-blur-sm rounded-lg`
+- ReactFlow controls: position bottom-left, `bg-card/80 backdrop-blur-sm rounded-md border-border/50`
 - Any future toolbars: float over the canvas, don't dock to edges
-- Minimap: bottom-right, `bg-card border-border`
+- Minimap: bottom-right, same floating chrome style
+- Theme toggle: top-right, `ThemeToggle` component in a floating pill, cycles light/dark via `next-themes`
+- All floating chrome uses: `bg-card/80 backdrop-blur-sm rounded-md border border-border/50 shadow-sm`
 
 ### Message bubbles
 
@@ -241,15 +249,15 @@ Things we explicitly reject:
 
 ---
 
-## Light mode
+## Theme switching
 
-Light mode exists for completeness but is not the default. Rules:
+Light mode is the default. Dark mode is available via the `ThemeToggle` component (top-right of canvas).
 
-- Background: white `oklch(1 0 0)` — clean, not cream
-- Card: `oklch(0.98 0 0)` — barely off-white
-- Borders: `oklch(0.9 0 0)` — light gray, structural
-- Same semantic color mapping (blue interactive, orange/blue handles, green presence)
-- No colored section backgrounds in light mode either
+- **Mechanism:** `next-themes` with `attribute="class"`, `defaultTheme="light"`, `enableSystem`
+- **Provider:** `src/components/providers/ThemeProvider.tsx` wraps the app in `layout.tsx`
+- **Toggle:** `src/components/canvas/ThemeToggle.tsx` — lucide Sun/Moon icons, `Button ghost icon-xs`
+- Both modes use the same semantic color mapping (blue interactive, orange/blue handles, green presence)
+- No colored section backgrounds in either mode
 - Test every component in both modes before shipping
 
 ---

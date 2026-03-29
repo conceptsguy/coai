@@ -1,11 +1,12 @@
 import { create } from "zustand";
-import type {
-  ChatFlowNode,
-  ConnectionEdge,
-  ModelConfig,
-  ChatMessage,
-  ConnectedContext,
-  ProjectMetadata,
+import {
+  AVAILABLE_MODELS,
+  type ChatFlowNode,
+  type ConnectionEdge,
+  type ModelConfig,
+  type ChatMessage,
+  type ConnectedContext,
+  type ProjectMetadata,
 } from "@/types/canvas";
 import {
   applyNodeChanges,
@@ -39,10 +40,15 @@ interface CanvasState {
   // ── Local-only state (not synced) ──
   selectedNodeId: string | null;
   sidebarOpen: boolean;
+  leftPanelOpen: boolean;
   /** Yjs doc reference — set by the provider */
   _yjsDoc: Y.Doc | null;
   /** Node currently receiving streaming AI response (local-only) */
   _streamingNodeId: string | null;
+  /** Pending first message from bottom input — picked up by ChatSidebar */
+  _pendingFirstMessage: string | null;
+  /** Registered by CanvasEditor so other components can compute flow positions */
+  _screenToFlowPosition: ((point: { x: number; y: number }) => { x: number; y: number }) | null;
 
   // ── Yjs doc binding ──
   setYjsDoc: (doc: Y.Doc | null) => void;
@@ -80,6 +86,14 @@ interface CanvasState {
   // ── Sidebar ──
   openSidebar: (nodeId: string) => void;
   closeSidebar: () => void;
+
+  // ── Left panel ──
+  toggleLeftPanel: () => void;
+
+  // ── Bottom input → new chat ──
+  setPendingFirstMessage: (message: string | null) => void;
+  setScreenToFlowPosition: (fn: ((point: { x: number; y: number }) => { x: number; y: number }) | null) => void;
+  createChatFromInput: (message: string) => string;
 }
 
 // Debounce helper for position syncs to Yjs
@@ -105,8 +119,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   // ── Local-only state ──
   selectedNodeId: null,
   sidebarOpen: false,
+  leftPanelOpen: true,
   _yjsDoc: null,
   _streamingNodeId: null,
+  _pendingFirstMessage: null,
+  _screenToFlowPosition: null,
 
   setYjsDoc: (doc) => {
     set({ _yjsDoc: doc });
@@ -280,5 +297,34 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   closeSidebar: () => {
     set({ sidebarOpen: false });
+  },
+
+  toggleLeftPanel: () => {
+    set((state) => ({ leftPanelOpen: !state.leftPanelOpen }));
+  },
+
+  setPendingFirstMessage: (message) => {
+    set({ _pendingFirstMessage: message });
+  },
+
+  setScreenToFlowPosition: (fn) => {
+    set({ _screenToFlowPosition: fn });
+  },
+
+  createChatFromInput: (message) => {
+    const { _screenToFlowPosition, addChatNode } = get();
+    // Place the new node at viewport center, or a default position
+    let position = { x: 300, y: 300 };
+    if (_screenToFlowPosition) {
+      position = _screenToFlowPosition({
+        x: window.innerWidth / 2,
+        y: window.innerHeight / 2,
+      });
+    }
+    const nodeId = addChatNode(position, AVAILABLE_MODELS[0]);
+    if (nodeId) {
+      set({ selectedNodeId: nodeId, sidebarOpen: true, _pendingFirstMessage: message });
+    }
+    return nodeId;
   },
 }));

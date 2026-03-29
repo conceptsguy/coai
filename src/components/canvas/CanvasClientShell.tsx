@@ -4,16 +4,23 @@ import { useEffect } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
 import { useCanvasStore } from "@/lib/store/canvas-store";
 import { YjsProvider, useYjs } from "@/lib/yjs/provider";
+import { useCollaborators } from "@/lib/yjs/awareness";
 import { CanvasEditor } from "@/components/canvas/CanvasEditor";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
+import { TopBar } from "@/components/canvas/TopBar";
+import { ChatListPanel } from "@/components/canvas/ChatListPanel";
+import { BottomInput } from "@/components/canvas/BottomInput";
 
 interface CanvasClientShellProps {
   projectId: string;
 }
 
 function CanvasInner() {
-  const { doc, synced } = useYjs();
+  const { doc, awareness, synced, connected } = useYjs();
   const hydrated = useCanvasStore((s) => s.hydrated);
+  const leftPanelOpen = useCanvasStore((s) => s.leftPanelOpen);
+  const sidebarOpen = useCanvasStore((s) => s.sidebarOpen);
+  const collaborators = useCollaborators(awareness);
 
   // Bind the Yjs doc to the store so actions can write to it
   useEffect(() => {
@@ -35,13 +42,18 @@ function CanvasInner() {
   }
 
   return (
-    <div className="h-screen w-screen flex overflow-hidden">
-      <ReactFlowProvider>
-        <div className="flex-1 relative">
-          <CanvasEditor />
-        </div>
-        <ChatSidebar />
-      </ReactFlowProvider>
+    <div className="h-screen w-screen flex flex-col overflow-hidden">
+      <TopBar connected={connected} collaborators={collaborators} />
+      <div className="flex-1 flex overflow-hidden">
+        <ReactFlowProvider>
+          {leftPanelOpen && <ChatListPanel />}
+          <div className="flex-1 relative">
+            <CanvasEditor collaborators={collaborators} />
+            {!sidebarOpen && <BottomInput />}
+          </div>
+          <ChatSidebar />
+        </ReactFlowProvider>
+      </div>
     </div>
   );
 }
