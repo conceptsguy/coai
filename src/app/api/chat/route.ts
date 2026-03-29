@@ -1,10 +1,17 @@
 import { streamText } from "ai";
 import { getModel } from "@/lib/ai/providers";
+import { createClient } from "@/lib/supabase/server";
 import type { ModelProvider, ConnectedContext } from "@/types/canvas";
 
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
   const body = await req.json();
 
   const { messages, provider, modelId, connectedContexts } = body as {

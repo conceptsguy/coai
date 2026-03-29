@@ -1,9 +1,16 @@
 import { generateText } from "ai";
 import { getModel } from "@/lib/ai/providers";
+import { createClient } from "@/lib/supabase/server";
 
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
   const { messages, title } = (await req.json()) as {
     messages: Array<{ role: string; content: string }>;
     title: string;
