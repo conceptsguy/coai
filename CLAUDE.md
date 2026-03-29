@@ -74,19 +74,36 @@ src/
 ├── proxy.ts                        # Auth session refresh + route protection (Next.js 16)
 └── types/canvas.ts                 # ChatNodeData, ChatFlowNode, ModelConfig, etc.
 
+doc/
+└── adr/                             # Architecture Decision Records (see below)
+
 supabase/
 └── migrations/
     ├── 001_*.sql                    # Initial schema (profiles, projects, nodes, edges, messages)
     └── 002_yjs_documents.sql        # Yjs binary snapshot storage
 ```
 
-## Architecture Decisions
+## Architecture Decision Records
 
-- **All AI calls go through server** — API routes proxy to Anthropic/OpenAI. Never call from client.
-- **React Flow node ID = Postgres record ID** — same UUID everywhere.
-- **Cheap models for background tasks** — Haiku for summarization and auto-titling; frontier models for user-facing chat.
-- **Context linking via summaries** — connected nodes inject rolling summaries into the system prompt, not raw message history. Keeps token costs manageable.
-- **Nodes are always compact cards on canvas** — no expanded on-canvas view. Hover shows a message preview popover; click opens the sidebar drawer.
+All significant architectural decisions are documented in `doc/adr/`. Each record captures the context, the decision with rejected alternatives, and tradeoffs.
+
+**Before implementing a feature:** read all ADRs in `doc/adr/` to ensure your approach is consistent with established decisions. If an existing decision needs to change, create a new ADR that supersedes the old one — never silently diverge.
+
+**During feature development:** if you make an architectural decision (new technology, data model choice, integration pattern, security boundary, etc.), create a new ADR before or alongside the implementation. Use the next available sequence number and follow the format in `doc/adr/0001-use-architecture-decision-records.md`.
+
+**When superseding a decision:** update the old ADR's status to `Superseded by ADR-NNNN` and set the new ADR's status to `Accepted`.
+
+Current ADRs:
+- **0001** — Use Architecture Decision Records
+- **0002** — Yjs as Source of Truth with Zustand Projection
+- **0003** — PartyKit for Managed WebSocket Infrastructure
+- **0004** — Dual-Write Pattern (Yjs + Supabase)
+- **0005** — Streaming Guard for AI Responses
+- **0006** — Context Linking via System Prompt Injection
+- **0007** — Server-Side AI Only
+- **0008** — Compact Card Nodes with Sidebar Drawer
+- **0009** — Debounced Position and Metadata Sync
+- **0010** — Email/Password Auth via Supabase
 
 ## Key Patterns
 
