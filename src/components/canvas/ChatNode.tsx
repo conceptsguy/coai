@@ -2,9 +2,16 @@
 
 import { memo, useState, useRef, useEffect, useCallback } from "react";
 import { Handle, Position, type NodeProps, useEdges } from "@xyflow/react";
-import type { ChatFlowNode } from "@/types/canvas";
+import type { ChatFlowNode, CollaboratorState } from "@/types/canvas";
 import { useCanvasStore } from "@/lib/store/canvas-store";
 import { Badge } from "@/components/ui/badge";
+import { useContext, createContext } from "react";
+
+/**
+ * Context to pass collaborator states to ChatNode without prop drilling
+ * through React Flow's nodeTypes. Set by CanvasEditor.
+ */
+export const CollaboratorsContext = createContext<CollaboratorState[]>([]);
 
 const inactiveClass = "!bg-muted-foreground/30 !border-muted-foreground/20";
 const inActiveClass = "!bg-blue-500 !border-blue-300";
@@ -170,10 +177,14 @@ function ChatNodeComponent({ id, data }: NodeProps<ChatFlowNode>) {
   const edges = useEdges();
   const [hovered, setHovered] = useState(false);
   const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const collaborators = useContext(CollaboratorsContext);
 
   const messageCount = data.messages.filter((m) => m.role !== "system").length;
   const incomingCount = edges.filter((e) => e.target === id).length;
   const outgoingCount = edges.filter((e) => e.source === id).length;
+
+  // Find collaborators who have this node selected
+  const viewers = collaborators.filter((c) => c.selectedNodeId === id);
 
   const onMouseEnter = useCallback(() => {
     hoverTimeout.current = setTimeout(() => setHovered(true), 400);
@@ -186,7 +197,10 @@ function ChatNodeComponent({ id, data }: NodeProps<ChatFlowNode>) {
 
   return (
     <div
-      className="relative bg-card border border-border rounded-lg px-3 py-2 shadow-sm cursor-pointer min-w-[180px] hover:shadow-md transition-shadow"
+      className="relative bg-card border-2 rounded-lg px-3 py-2 shadow-sm cursor-pointer min-w-[180px] hover:shadow-md transition-shadow"
+      style={{
+        borderColor: viewers.length > 0 ? viewers[0].color : "var(--border)",
+      }}
       onClick={() => openSidebar(id)}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
@@ -223,6 +237,21 @@ function ChatNodeComponent({ id, data }: NodeProps<ChatFlowNode>) {
           </Badge>
         )}
       </div>
+
+      {/* Collaborator viewing indicator */}
+      {viewers.length > 0 && (
+        <div className="flex items-center gap-1 mt-1">
+          {viewers.map((v) => (
+            <span
+              key={v.userId}
+              className="inline-flex items-center gap-1 text-[9px] font-medium text-white rounded-full px-1.5 py-0.5"
+              style={{ backgroundColor: v.color }}
+            >
+              {v.displayName}
+            </span>
+          ))}
+        </div>
+      )}
 
       {hovered && messageCount > 0 && <HoverPreview data={data} />}
     </div>

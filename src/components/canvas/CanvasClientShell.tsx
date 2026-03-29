@@ -1,38 +1,38 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
 import { useCanvasStore } from "@/lib/store/canvas-store";
+import { YjsProvider, useYjs } from "@/lib/yjs/provider";
 import { CanvasEditor } from "@/components/canvas/CanvasEditor";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
-import type { ChatFlowNode, ConnectionEdge, ProjectMetadata } from "@/types/canvas";
 
 interface CanvasClientShellProps {
   projectId: string;
-  project: ProjectMetadata;
-  initialNodes: ChatFlowNode[];
-  initialEdges: ConnectionEdge[];
 }
 
-export function CanvasClientShell({
-  projectId,
-  project,
-  initialNodes,
-  initialEdges,
-}: CanvasClientShellProps) {
-  const hydrated = useRef(false);
+function CanvasInner() {
+  const { doc, synced } = useYjs();
+  const hydrated = useCanvasStore((s) => s.hydrated);
 
+  // Bind the Yjs doc to the store so actions can write to it
   useEffect(() => {
-    if (!hydrated.current) {
-      useCanvasStore.getState().hydrateFromServer({
-        projectId,
-        project,
-        nodes: initialNodes,
-        edges: initialEdges,
-      });
-      hydrated.current = true;
-    }
-  }, [projectId, project, initialNodes, initialEdges]);
+    useCanvasStore.getState().setYjsDoc(doc);
+    return () => {
+      useCanvasStore.getState().setYjsDoc(null);
+    };
+  }, [doc]);
+
+  if (!hydrated || !synced) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-muted-foreground">Syncing canvas...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen w-screen flex overflow-hidden">
@@ -43,5 +43,13 @@ export function CanvasClientShell({
         <ChatSidebar />
       </ReactFlowProvider>
     </div>
+  );
+}
+
+export function CanvasClientShell({ projectId }: CanvasClientShellProps) {
+  return (
+    <YjsProvider projectId={projectId}>
+      <CanvasInner />
+    </YjsProvider>
   );
 }

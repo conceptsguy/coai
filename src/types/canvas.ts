@@ -54,3 +54,13 @@ export interface ProjectMetadata {
   title: string;
   purpose: string;
 }
+
+/** Yjs awareness state for a connected collaborator */
+export interface CollaboratorState {
+  userId: string;
+  displayName: string;
+  avatarUrl?: string;
+  color: string;
+  cursor: { x: number; y: number } | null;
+  selectedNodeId: string | null;
+}

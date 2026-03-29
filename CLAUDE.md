@@ -11,7 +11,8 @@ An infinite canvas where AI chat sessions are visual nodes you can place, connec
 - **Next.js 16** (App Router) + **React 19** + **TypeScript**
 - **React Flow** (`@xyflow/react`) — node/edge canvas
 - **Vercel AI SDK 6** (`ai`, `@ai-sdk/react`, `@ai-sdk/anthropic`, `@ai-sdk/openai`) — streaming chat, model abstraction
-- **Zustand** — client state (canvas-store.ts is the single source of truth)
+- **Yjs** + **PartyKit** (`y-partykit`) — CRDT-based multiplayer sync (source of truth)
+- **Zustand** — client state (reactive projection of Yjs doc)
 - **Tailwind CSS 4** + **shadcn/ui** (base-ui based) — styling/components
 - **Supabase** — auth (email/password), Postgres database (profiles, projects, nodes, edges, messages), RLS
 
@@ -26,37 +27,57 @@ npm run lint    # ESLint
 ## Project Structure
 
 ```
+partykit/
+├── partykit.json                    # PartyKit config (room routing, persistence)
+└── server.ts                        # Yjs WebSocket server (onConnect, snapshot persistence)
+
 src/
 ├── app/
 │   ├── api/
+│   │   ├── canvas/[id]/seed/route.ts # GET: seed data for Yjs doc migration (auth-guarded)
 │   │   ├── chat/route.ts           # Streaming chat endpoint (POST, auth-guarded)
 │   │   ├── summarize/route.ts      # Rolling summary generation (Haiku, auth-guarded)
 │   │   └── suggest-title/route.ts  # Auto-title from first exchange (Haiku, auth-guarded)
 │   ├── auth/
 │   │   ├── callback/route.ts       # OAuth code exchange
 │   │   └── signout/route.ts        # POST sign-out handler
-│   ├── canvas/[id]/page.tsx        # Main canvas page
+│   ├── canvas/[id]/page.tsx        # Main canvas page (auth + project access only)
 │   ├── login/page.tsx              # Email/password sign-in
 │   ├── signup/page.tsx             # Registration
 │   ├── layout.tsx                  # Root layout (Geist fonts, metadata)
 │   └── page.tsx                    # Landing page (auth-aware)
 ├── components/
 │   ├── canvas/
-│   │   ├── CanvasEditor.tsx        # ReactFlow wrapper (controls, minimap, edge validation)
-│   │   └── ChatNode.tsx            # Custom node: compact card, hover preview, click→sidebar
+│   │   ├── CanvasEditor.tsx        # ReactFlow wrapper + presence overlay
+│   │   ├── ChatNode.tsx            # Custom node: compact card, hover preview, collaborator ring
+│   │   ├── CollaboratorAvatars.tsx # Top-right avatar stack (who's online)
+│   │   └── CollaboratorCursors.tsx # Remote cursor overlay on canvas
 │   ├── chat/
 │   │   ├── ChatSidebar.tsx         # Right-side drawer for active chat
 │   │   └── ModelSelector.tsx       # Model picker dropdown
 │   └── ui/                         # shadcn/ui primitives
 ├── lib/
 │   ├── ai/providers.ts             # getModel(provider, modelId) abstraction
-│   ├── store/canvas-store.ts       # Zustand store — all canvas/node/edge state
+│   ├── store/canvas-store.ts       # Zustand store — reactive projection from Yjs
+│   ├── yjs/
+│   │   ├── doc.ts                  # Yjs document schema (getNodesMap, etc.)
+│   │   ├── utils.ts                # Y.Map ↔ TypeScript type conversions
+│   │   ├── bridge.ts               # Yjs write actions + Yjs→Zustand observers
+│   │   ├── provider.tsx            # React context: Yjs doc + PartyKit connection
+│   │   ├── seed.ts                 # Populate Yjs doc from Supabase (migration)
+│   │   └── awareness.ts            # Presence: cursors, collaborator state
 │   └── supabase/
 │       ├── client.ts               # Browser client (createBrowserClient)
 │       ├── server.ts               # Server client (createServerClient, async cookies)
-│       └── admin.ts                # Service role client (bypasses RLS)
+│       ├── admin.ts                # Service role client (bypasses RLS)
+│       └── sync.ts                 # Direct Supabase writes (messages for AI routes)
 ├── proxy.ts                        # Auth session refresh + route protection (Next.js 16)
 └── types/canvas.ts                 # ChatNodeData, ChatFlowNode, ModelConfig, etc.
+
+supabase/
+└── migrations/
+    ├── 001_*.sql                    # Initial schema (profiles, projects, nodes, edges, messages)
+    └── 002_yjs_documents.sql        # Yjs binary snapshot storage
 ```
 
 ## Architecture Decisions
@@ -70,7 +91,7 @@ src/
 ## Key Patterns
 
 ### State (canvas-store.ts)
-Zustand store is the single source of truth. Key actions:
+Zustand store is a **reactive projection** of the Yjs document. Actions write to Yjs; observers push changes to Zustand. Key actions:
 - `addChatNode(position, modelConfig)` — creates node, returns UUID
 - `addMessage(nodeId, message)` / `updateLastAssistantMessage(nodeId, content)`
 - `updateNodeTitle(nodeId, title)` / `updateNodeSummary(nodeId, summary)`
@@ -114,6 +135,7 @@ Zustand store is the single source of truth. Key actions:
 - `nodes` — chat nodes with position, model config, summary
 - `edges` — connections between nodes (text ID matching React Flow format)
 - `messages` — chat messages (append-only, belongs to a node)
+- `yjs_documents` — binary Yjs state snapshots (one per project, used by PartyKit for persistence)
 - All tables have RLS policies scoped to project owner via `auth.uid()`
 
 ### Supabase Clients
@@ -121,9 +143,55 @@ Zustand store is the single source of truth. Key actions:
 - **Server** (`lib/supabase/server.ts`): `createServerClient` — for server components, API routes (note: `cookies()` must be awaited in Next.js 16)
 - **Admin** (`lib/supabase/admin.ts`): service role client — bypasses RLS
 
+## Multiplayer / Realtime Sync (Yjs + PartyKit)
+
+### Architecture
+- **Yjs** is the source of truth for all canvas data (nodes, edges, messages, project metadata)
+- **Zustand** is a reactive projection layer: Yjs observers push changes → `useCanvasStore.setState()`
+- **PartyKit** provides the managed WebSocket server (Cloudflare Workers + Durable Objects)
+- Data flow: `User Action → Yjs Doc → (observer) → Zustand → React`
+
+### Yjs Document Schema (`src/lib/yjs/doc.ts`)
+- `yDoc.getMap('nodes')` → `Y.Map<string, Y.Map>` (nodeId → node fields)
+- `yDoc.getMap('edges')` → `Y.Map<string, Y.Map>` (edgeId → edge fields)
+- `yDoc.getMap('messages')` → `Y.Map<string, Y.Array<Y.Map>>` (nodeId → messages)
+- `yDoc.getMap('project')` → `Y.Map` (title, purpose)
+
+### Key Files
+- `src/lib/yjs/doc.ts` — Yjs doc schema accessors
+- `src/lib/yjs/utils.ts` — Convert between Yjs Y.Map ↔ TypeScript types
+- `src/lib/yjs/bridge.ts` — Write actions (yjsAddNode, etc.) + observers (Yjs → Zustand)
+- `src/lib/yjs/provider.tsx` — React context providing Yjs doc + PartyKit connection
+- `src/lib/yjs/seed.ts` — Populates Yjs doc from Supabase for pre-Yjs projects
+- `src/lib/yjs/awareness.ts` — Presence: cursors, collaborator tracking
+- `partykit/server.ts` — PartyKit Yjs server with snapshot persistence
+
+### Streaming AI Responses
+- Streaming chunks stay **local-only** in Zustand (`updateLastAssistantMessage`)
+- Final message committed to Yjs via `addMessage` in `onFinish` callback
+- Messages also written to Supabase `messages` table for server-side AI API routes
+
+### Presence (Phase 2)
+- Awareness protocol via y-partykit broadcasts cursor position + selected node
+- `CollaboratorCursors` renders remote cursors on the canvas
+- `CollaboratorAvatars` shows who's online (top-right)
+- `ChatNode` shows colored border when another user has it selected
+
+### Running Locally
+```bash
+# Terminal 1: PartyKit server
+npm run dev:partykit
+
+# Terminal 2: Next.js dev server
+npm run dev
+```
+
+### Environment Variables
+- `NEXT_PUBLIC_PARTYKIT_HOST` — PartyKit server host (default: `localhost:1999`)
+
 ## What's Not Built Yet
-- Persistence / sync (canvas state still in-memory Zustand, not yet synced to Supabase)
-- Multiplayer / realtime sync (Yjs planned)
+- Sharing / access control (project_members table, share dialog)
+- Offline support (y-indexeddb for local persistence)
 - Agent nodes (mediator/strategist)
 - File nodes
 - BYOK (bring your own key)

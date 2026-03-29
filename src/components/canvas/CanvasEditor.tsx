@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import {
   ReactFlow,
   Background,
@@ -15,10 +15,19 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import { useCanvasStore } from "@/lib/store/canvas-store";
-import { ChatNode } from "@/components/canvas/ChatNode";
+import { ChatNode, CollaboratorsContext } from "@/components/canvas/ChatNode";
 import { ProjectHeader } from "@/components/canvas/ProjectHeader";
+import { CollaboratorCursors } from "@/components/canvas/CollaboratorCursors";
+import { CollaboratorAvatars } from "@/components/canvas/CollaboratorAvatars";
 import { AVAILABLE_MODELS } from "@/types/canvas";
-import { syncInsertEdge } from "@/lib/supabase/sync";
+import { useYjs } from "@/lib/yjs/provider";
+import { yjsAddEdge } from "@/lib/yjs/bridge";
+import {
+  useCollaborators,
+  useBroadcastCursor,
+  setLocalAwareness,
+  getCollaboratorColor,
+} from "@/lib/yjs/awareness";
 
 const nodeTypes = {
   chat: ChatNode,
@@ -36,15 +45,33 @@ const defaultEdgeOptions: DefaultEdgeOptions = {
 };
 
 export function CanvasEditor() {
-  const { nodes, edges, onNodesChange, onEdgesChange, addChatNode } =
+  const { nodes, edges, onNodesChange, onEdgesChange, addChatNode, selectedNodeId } =
     useCanvasStore();
   const { screenToFlowPosition } = useReactFlow();
+  const { doc, awareness, connected } = useYjs();
+  const collaborators = useCollaborators(awareness);
+  const broadcastCursor = useBroadcastCursor(awareness);
+
+  // Initialize local awareness with user info
+  useEffect(() => {
+    if (!awareness) return;
+    setLocalAwareness(awareness, {
+      userId: awareness.clientID.toString(),
+      displayName: "User " + (awareness.clientID % 100),
+      color: getCollaboratorColor(awareness.clientID),
+      cursor: null,
+      selectedNodeId: null,
+    });
+  }, [awareness]);
+
+  // Broadcast selected node to other collaborators
+  useEffect(() => {
+    setLocalAwareness(awareness, { selectedNodeId });
+  }, [awareness, selectedNodeId]);
 
   const isValidConnection = useCallback(
     (connection: Connection | { source: string; target: string; sourceHandle?: string | null; targetHandle?: string | null }) => {
-      // No self-connections
       if (connection.source === connection.target) return false;
-      // Must go from a source (output/orange) handle to a target (input/blue) handle
       const fromSource = connection.sourceHandle?.startsWith("source-");
       const toTarget = connection.targetHandle?.startsWith("target-");
       return !!fromSource && !!toTarget;
@@ -56,7 +83,6 @@ export function CanvasEditor() {
     (connection: Connection) => {
       if (!isValidConnection(connection)) return;
 
-      // Prevent duplicate connections (same source node → same target node)
       const exists = useCanvasStore
         .getState()
         .edges.some(
@@ -66,42 +92,25 @@ export function CanvasEditor() {
       if (exists) return;
 
       const edgeId = `${connection.source}-${connection.sourceHandle}-${connection.target}-${connection.targetHandle}`;
-      useCanvasStore.setState((state) => ({
-        edges: [
-          ...state.edges,
-          {
-            id: edgeId,
-            source: connection.source!,
-            sourceHandle: connection.sourceHandle,
-            target: connection.target!,
-            targetHandle: connection.targetHandle,
-            animated: true,
-            style: { stroke: "#3b82f6", strokeWidth: 2 },
-            markerEnd: {
-              type: MarkerType.ArrowClosed,
-              color: "#3b82f6",
-              width: 16,
-              height: 16,
-            },
-            data: { direction: "one_way" as const },
-          },
-        ],
-      }));
 
-      // Sync to DB
-      const projectId = useCanvasStore.getState().projectId;
-      if (projectId) {
-        syncInsertEdge(
-          projectId,
-          edgeId,
-          connection.source!,
-          connection.target!,
-          connection.sourceHandle ?? null,
-          connection.targetHandle ?? null
-        );
-      }
+      yjsAddEdge(doc, {
+        id: edgeId,
+        source: connection.source!,
+        sourceHandle: connection.sourceHandle,
+        target: connection.target!,
+        targetHandle: connection.targetHandle,
+        animated: true,
+        style: { stroke: "#3b82f6", strokeWidth: 2 },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: "#3b82f6",
+          width: 16,
+          height: 16,
+        },
+        data: { direction: "one_way" as const },
+      });
     },
-    [isValidConnection]
+    [isValidConnection, doc]
   );
 
   const onDoubleClick = useCallback(
@@ -115,43 +124,78 @@ export function CanvasEditor() {
     [screenToFlowPosition, addChatNode]
   );
 
+  const onMouseMove = useCallback(
+    (event: React.MouseEvent) => {
+      const flowPosition = screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+      broadcastCursor(flowPosition);
+    },
+    [screenToFlowPosition, broadcastCursor]
+  );
+
+  const onMouseLeave = useCallback(() => {
+    broadcastCursor(null);
+  }, [broadcastCursor]);
+
   return (
     <div className="w-full h-full">
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        isValidConnection={isValidConnection}
-        onDoubleClick={onDoubleClick}
-        nodeTypes={nodeTypes}
-        defaultEdgeOptions={defaultEdgeOptions}
-        fitView
-        proOptions={{ hideAttribution: true }}
-        className="bg-background"
-      >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--border)" />
-        <Controls className="!bg-card !border-border !shadow-md" />
-        <MiniMap
-          className="!bg-card !border-border"
-          nodeColor="var(--primary)"
-          maskColor="rgba(0,0,0,0.1)"
-        />
-      </ReactFlow>
+      <CollaboratorsContext.Provider value={collaborators}>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          isValidConnection={isValidConnection}
+          onDoubleClick={onDoubleClick}
+          onMouseMove={onMouseMove}
+          onMouseLeave={onMouseLeave}
+          nodeTypes={nodeTypes}
+          defaultEdgeOptions={defaultEdgeOptions}
+          fitView
+          proOptions={{ hideAttribution: true }}
+          className="bg-background"
+        >
+          <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--border)" />
+          <Controls className="!bg-card !border-border !shadow-md" />
+          <MiniMap
+            className="!bg-card !border-border"
+            nodeColor="var(--primary)"
+            maskColor="rgba(0,0,0,0.1)"
+          />
+        </ReactFlow>
+      </CollaboratorsContext.Provider>
+
+      {/* Collaborator cursors overlay */}
+      <CollaboratorCursors collaborators={collaborators} />
 
       {/* Canvas overlay: project info + controls */}
       <div className="absolute top-4 left-4 z-10 flex flex-col gap-3">
         <ProjectHeader />
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           <button
             onClick={() => addChatNode({ x: 100, y: 100 }, AVAILABLE_MODELS[0])}
             className="bg-primary text-primary-foreground px-3 py-1.5 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors shadow-md"
           >
             + Add Chat Node
           </button>
+          {!connected && (
+            <span className="text-xs text-amber-500 flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-amber-500" />
+              Reconnecting...
+            </span>
+          )}
         </div>
       </div>
+
+      {/* Collaborator avatars (top-right) */}
+      {collaborators.length > 0 && (
+        <div className="absolute top-4 right-4 z-10">
+          <CollaboratorAvatars collaborators={collaborators} />
+        </div>
+      )}
     </div>
   );
 }

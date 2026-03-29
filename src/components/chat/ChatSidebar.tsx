@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ModelSelector } from "@/components/chat/ModelSelector";
 import type { ConnectedContext } from "@/types/canvas";
+import { syncInsertMessage } from "@/lib/supabase/sync";
 
 function EditableSidebarTitle({ nodeId, title }: { nodeId: string; title: string }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -124,7 +125,6 @@ export function ChatSidebar() {
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
 
-  // Get connected contexts for the selected node
   const connectedContexts: ConnectedContext[] = useMemo(() => {
     if (!selectedNodeId) return [];
     return getConnectedContexts(selectedNodeId);
@@ -152,16 +152,26 @@ export function ChatSidebar() {
     id: selectedNodeId ?? undefined,
     onFinish({ message }) {
       if (!selectedNodeId) return;
+
+      // Clear streaming guard so Yjs observer can update this node again
+      useCanvasStore.getState().setStreamingNodeId(null);
+
       const text = getPartsText(
         message.parts as Array<{ type: string; text?: string }>
       );
+      const msgId = uuid();
+
+      // Write final message to Yjs (syncs to all peers)
       const store = useCanvasStore.getState();
       store.addMessage(selectedNodeId, {
-        id: uuid(),
+        id: msgId,
         role: "assistant",
         content: text,
         createdAt: new Date().toISOString(),
       });
+
+      // Also write to Supabase for server-side AI API routes
+      syncInsertMessage(selectedNodeId, msgId, "assistant", text);
 
       const node = store.nodes.find((n) => n.id === selectedNodeId);
       if (node) {
@@ -171,10 +181,8 @@ export function ChatSidebar() {
         ];
         const simpleMsgs = allMessages.map((m) => ({ role: m.role, content: m.content }));
 
-        // Trigger summarization after each assistant response
         summarizeChat(selectedNodeId, node.data.title, simpleMsgs);
 
-        // Auto-title on first assistant response if title is still the default
         const assistantCount = allMessages.filter((m) => m.role === "assistant").length;
         if (assistantCount === 1 && DEFAULT_TITLE_PATTERN.test(node.data.title)) {
           suggestTitle(selectedNodeId, simpleMsgs);
@@ -209,14 +217,24 @@ export function ChatSidebar() {
     e.preventDefault();
     if (!input.trim() || !selectedNodeId) return;
 
+    const msgId = uuid();
+    const content = input;
+
+    // Write user message to Yjs (syncs to all peers)
     useCanvasStore.getState().addMessage(selectedNodeId, {
-      id: uuid(),
+      id: msgId,
       role: "user",
-      content: input,
+      content,
       createdAt: new Date().toISOString(),
     });
 
-    sendMessage({ text: input });
+    // Also write to Supabase for server-side AI API routes
+    syncInsertMessage(selectedNodeId, msgId, "user", content);
+
+    // Guard this node's messages from Yjs observer overwrites during streaming
+    useCanvasStore.getState().setStreamingNodeId(selectedNodeId);
+
+    sendMessage({ text: content });
     setInput("");
   };
 

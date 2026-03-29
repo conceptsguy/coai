@@ -13,72 +13,81 @@ import {
   type NodeChange,
   type EdgeChange,
 } from "@xyflow/react";
-import { v4 as uuid } from "uuid";
+import * as Y from "yjs";
 import {
-  syncNodePosition,
-  syncNodeTitle,
-  syncNodeSummary,
-  syncInsertNode,
-  syncDeleteNode,
-  syncInsertMessage,
-  syncProjectTitle,
-  syncProjectPurpose,
-} from "@/lib/supabase/sync";
+  yjsAddNode,
+  yjsRemoveNode,
+  yjsUpdateNodePosition,
+  yjsUpdateNodeTitle,
+  yjsUpdateNodeModel,
+  yjsUpdateNodeSummary,
+  yjsAddMessage,
+  yjsAddEdge,
+  yjsRemoveEdge,
+  yjsUpdateProjectTitle,
+  yjsUpdateProjectPurpose,
+} from "@/lib/yjs/bridge";
 
 interface CanvasState {
+  // ── Synced state (projected from Yjs observers) ──
   nodes: ChatFlowNode[];
   edges: ConnectionEdge[];
-  selectedNodeId: string | null;
-  sidebarOpen: boolean;
   project: ProjectMetadata;
   projectId: string | null;
   hydrated: boolean;
 
-  // Hydration
-  hydrateFromServer: (data: {
-    projectId: string;
-    project: ProjectMetadata;
-    nodes: ChatFlowNode[];
-    edges: ConnectionEdge[];
-  }) => void;
+  // ── Local-only state (not synced) ──
+  selectedNodeId: string | null;
+  sidebarOpen: boolean;
+  /** Yjs doc reference — set by the provider */
+  _yjsDoc: Y.Doc | null;
+  /** Node currently receiving streaming AI response (local-only) */
+  _streamingNodeId: string | null;
 
-  // Node actions
+  // ── Yjs doc binding ──
+  setYjsDoc: (doc: Y.Doc | null) => void;
+
+  // ── Node actions (write to Yjs) ──
   addChatNode: (position: { x: number; y: number }, modelConfig: ModelConfig) => string;
   removeNode: (nodeId: string) => void;
   toggleNodeCollapsed: (nodeId: string) => void;
   selectNode: (nodeId: string | null) => void;
   updateNodeTitle: (nodeId: string, title: string) => void;
+  updateNodeModel: (nodeId: string, modelConfig: ModelConfig) => void;
 
-  // Message actions
+  // ── Message actions ──
   addMessage: (nodeId: string, message: ChatMessage) => void;
+  /** Local-only streaming update — NOT synced to Yjs */
   updateLastAssistantMessage: (nodeId: string, content: string) => void;
+  /** Call when streaming starts/ends to protect local state from Yjs overwrites */
+  setStreamingNodeId: (nodeId: string | null) => void;
 
-  // Summary actions
+  // ── Summary actions ──
   updateNodeSummary: (nodeId: string, summary: string) => void;
 
-  // Connection context
+  // ── Connection context (computed reads) ──
   getConnectedContexts: (nodeId: string) => ConnectedContext[];
   getIncomingSourceCount: (nodeId: string) => number;
 
-  // React Flow callbacks
+  // ── React Flow callbacks ──
   onNodesChange: (changes: NodeChange<ChatFlowNode>[]) => void;
   onEdgesChange: (changes: EdgeChange<ConnectionEdge>[]) => void;
 
-  // Project metadata
+  // ── Project metadata ──
   updateProjectTitle: (title: string) => void;
   updateProjectPurpose: (purpose: string) => void;
 
-  // Sidebar
+  // ── Sidebar ──
   openSidebar: (nodeId: string) => void;
   closeSidebar: () => void;
 }
 
-// Debounce helper for position syncs
+// Debounce helper for position syncs to Yjs
 let positionTimers: Record<string, ReturnType<typeof setTimeout>> = {};
-function debouncedPositionSync(nodeId: string, x: number, y: number) {
+function debouncedPositionSync(doc: Y.Doc, nodeId: string, x: number, y: number) {
   clearTimeout(positionTimers[nodeId]);
   positionTimers[nodeId] = setTimeout(() => {
-    syncNodePosition(nodeId, x, y);
+    yjsUpdateNodePosition(doc, nodeId, x, y);
   }, 500);
 }
 
@@ -86,78 +95,42 @@ let projectTitleTimer: ReturnType<typeof setTimeout>;
 let projectPurposeTimer: ReturnType<typeof setTimeout>;
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
+  // ── Synced state (set by Yjs observers via bridge.ts) ──
   nodes: [],
   edges: [],
-  selectedNodeId: null,
-  sidebarOpen: false,
   project: { title: "Untitled Project", purpose: "" },
   projectId: null,
   hydrated: false,
 
-  hydrateFromServer: (data) => {
-    set({
-      projectId: data.projectId,
-      project: data.project,
-      nodes: data.nodes,
-      edges: data.edges,
-      hydrated: true,
-    });
+  // ── Local-only state ──
+  selectedNodeId: null,
+  sidebarOpen: false,
+  _yjsDoc: null,
+  _streamingNodeId: null,
+
+  setYjsDoc: (doc) => {
+    set({ _yjsDoc: doc });
   },
 
   addChatNode: (position, modelConfig) => {
-    const id = uuid();
-    const newNode: ChatFlowNode = {
-      id,
-      type: "chat",
-      position,
-      data: {
-        type: "chat",
-        title: `Chat ${get().nodes.length + 1}`,
-        modelConfig,
-        messages: [],
-        lastMessagePreview: "",
-        isCollapsed: true,
-        summary: "",
-        summaryMessageCount: 0,
-      },
-    };
-    set((state) => ({ nodes: [...state.nodes, newNode] }));
-
-    // Sync to DB
-    const projectId = get().projectId;
-    if (projectId) {
-      syncInsertNode(
-        projectId,
-        id,
-        newNode.data.title,
-        modelConfig.provider,
-        modelConfig.modelId,
-        modelConfig.label,
-        position.x,
-        position.y
-      );
-    }
-
-    return id;
+    const doc = get()._yjsDoc;
+    if (!doc) return "";
+    return yjsAddNode(doc, position, modelConfig);
   },
 
   removeNode: (nodeId) => {
-    set((state) => ({
-      nodes: state.nodes.filter((n) => n.id !== nodeId),
-      edges: state.edges.filter(
-        (e) => e.source !== nodeId && e.target !== nodeId
-      ),
-      selectedNodeId:
-        state.selectedNodeId === nodeId ? null : state.selectedNodeId,
-      sidebarOpen:
-        state.selectedNodeId === nodeId ? false : state.sidebarOpen,
-    }));
+    const doc = get()._yjsDoc;
+    if (doc) yjsRemoveNode(doc, nodeId);
 
-    // Sync to DB (cascade deletes edges and messages)
-    syncDeleteNode(nodeId);
+    // Also update local-only state
+    set((state) => ({
+      selectedNodeId: state.selectedNodeId === nodeId ? null : state.selectedNodeId,
+      sidebarOpen: state.selectedNodeId === nodeId ? false : state.sidebarOpen,
+    }));
   },
 
   toggleNodeCollapsed: (nodeId) => {
+    // This is a minor UI preference — keep local for now
     set((state) => ({
       nodes: state.nodes.map((n) =>
         n.id === nodeId
@@ -172,42 +145,22 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   updateNodeTitle: (nodeId, title) => {
-    set((state) => ({
-      nodes: state.nodes.map((n) =>
-        n.id === nodeId ? { ...n, data: { ...n.data, title } } : n
-      ),
-    }));
+    const doc = get()._yjsDoc;
+    if (doc) yjsUpdateNodeTitle(doc, nodeId, title);
+  },
 
-    // Sync to DB
-    syncNodeTitle(nodeId, title);
+  updateNodeModel: (nodeId, modelConfig) => {
+    const doc = get()._yjsDoc;
+    if (doc) yjsUpdateNodeModel(doc, nodeId, modelConfig);
   },
 
   addMessage: (nodeId, message) => {
-    set((state) => ({
-      nodes: state.nodes.map((n) =>
-        n.id === nodeId
-          ? {
-              ...n,
-              data: {
-                ...n.data,
-                messages: [...n.data.messages, message],
-                lastMessagePreview:
-                  message.role === "assistant"
-                    ? message.content.slice(0, 100)
-                    : n.data.lastMessagePreview,
-              },
-            }
-          : n
-      ),
-    }));
-
-    // Sync to DB
-    if (get().projectId) {
-      syncInsertMessage(nodeId, message.id, message.role, message.content);
-    }
+    const doc = get()._yjsDoc;
+    if (doc) yjsAddMessage(doc, nodeId, message);
   },
 
   updateLastAssistantMessage: (nodeId, content) => {
+    // Local-only: streaming chunks stay in Zustand, not Yjs
     set((state) => ({
       nodes: state.nodes.map((n) => {
         if (n.id !== nodeId) return n;
@@ -226,30 +179,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         };
       }),
     }));
-    // Note: we don't sync partial streaming updates — the final message
-    // is synced via addMessage in the onFinish callback
+  },
+
+  setStreamingNodeId: (nodeId) => {
+    set({ _streamingNodeId: nodeId });
   },
 
   updateNodeSummary: (nodeId, summary) => {
-    const messageCount =
-      get().nodes.find((n) => n.id === nodeId)?.data.messages.length ?? 0;
-    set((state) => ({
-      nodes: state.nodes.map((n) =>
-        n.id === nodeId
-          ? {
-              ...n,
-              data: {
-                ...n.data,
-                summary,
-                summaryMessageCount: messageCount,
-              },
-            }
-          : n
-      ),
-    }));
-
-    // Sync to DB
-    syncNodeSummary(nodeId, summary, messageCount);
+    const doc = get()._yjsDoc;
+    if (doc) yjsUpdateNodeSummary(doc, nodeId, summary);
   },
 
   getConnectedContexts: (nodeId) => {
@@ -276,22 +214,22 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   onNodesChange: (changes) => {
+    // Apply changes locally for immediate UI feedback (drag, select, etc.)
     set((state) => ({
       nodes: applyNodeChanges(changes, state.nodes) as ChatFlowNode[],
     }));
 
-    // Sync position changes (debounced)
+    // Sync position changes to Yjs (debounced, on drag end)
+    const doc = get()._yjsDoc;
+    if (!doc) return;
+
     for (const change of changes) {
       if (
         change.type === "position" &&
         change.position &&
         !change.dragging
       ) {
-        debouncedPositionSync(
-          change.id,
-          change.position.x,
-          change.position.y
-        );
+        debouncedPositionSync(doc, change.id, change.position.x, change.position.y);
       }
     }
   },
@@ -300,17 +238,26 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set((state) => ({
       edges: applyEdgeChanges(changes, state.edges) as ConnectionEdge[],
     }));
+
+    // Sync edge removals to Yjs
+    const doc = get()._yjsDoc;
+    if (!doc) return;
+
+    for (const change of changes) {
+      if (change.type === "remove") {
+        yjsRemoveEdge(doc, change.id);
+      }
+    }
   },
 
   updateProjectTitle: (title) => {
     set((state) => ({ project: { ...state.project, title } }));
 
-    // Debounced sync
-    const projectId = get().projectId;
-    if (projectId) {
+    const doc = get()._yjsDoc;
+    if (doc) {
       clearTimeout(projectTitleTimer);
       projectTitleTimer = setTimeout(() => {
-        syncProjectTitle(projectId, title);
+        yjsUpdateProjectTitle(doc, title);
       }, 2000);
     }
   },
@@ -318,12 +265,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   updateProjectPurpose: (purpose) => {
     set((state) => ({ project: { ...state.project, purpose } }));
 
-    // Debounced sync
-    const projectId = get().projectId;
-    if (projectId) {
+    const doc = get()._yjsDoc;
+    if (doc) {
       clearTimeout(projectPurposeTimer);
       projectPurposeTimer = setTimeout(() => {
-        syncProjectPurpose(projectId, purpose);
+        yjsUpdateProjectPurpose(doc, purpose);
       }, 2000);
     }
   },
