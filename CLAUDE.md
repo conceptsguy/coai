@@ -13,7 +13,7 @@ An infinite canvas where AI chat sessions are visual nodes you can place, connec
 - **Vercel AI SDK 6** (`ai`, `@ai-sdk/react`, `@ai-sdk/anthropic`, `@ai-sdk/openai`) — streaming chat, model abstraction
 - **Zustand** — client state (canvas-store.ts is the single source of truth)
 - **Tailwind CSS 4** + **shadcn/ui** (base-ui based) — styling/components
-- **Supabase** — planned for auth, persistence, realtime (not yet wired)
+- **Supabase** — auth (email/password), Postgres database (profiles, projects, nodes, edges, messages), RLS
 
 ## Commands
 
@@ -29,12 +29,17 @@ npm run lint    # ESLint
 src/
 ├── app/
 │   ├── api/
-│   │   ├── chat/route.ts           # Streaming chat endpoint (POST)
-│   │   ├── summarize/route.ts      # Rolling summary generation (Haiku)
-│   │   └── suggest-title/route.ts  # Auto-title from first exchange (Haiku)
+│   │   ├── chat/route.ts           # Streaming chat endpoint (POST, auth-guarded)
+│   │   ├── summarize/route.ts      # Rolling summary generation (Haiku, auth-guarded)
+│   │   └── suggest-title/route.ts  # Auto-title from first exchange (Haiku, auth-guarded)
+│   ├── auth/
+│   │   ├── callback/route.ts       # OAuth code exchange
+│   │   └── signout/route.ts        # POST sign-out handler
 │   ├── canvas/[id]/page.tsx        # Main canvas page
+│   ├── login/page.tsx              # Email/password sign-in
+│   ├── signup/page.tsx             # Registration
 │   ├── layout.tsx                  # Root layout (Geist fonts, metadata)
-│   └── page.tsx                    # Landing page → redirects to canvas
+│   └── page.tsx                    # Landing page (auth-aware)
 ├── components/
 │   ├── canvas/
 │   │   ├── CanvasEditor.tsx        # ReactFlow wrapper (controls, minimap, edge validation)
@@ -45,14 +50,19 @@ src/
 │   └── ui/                         # shadcn/ui primitives
 ├── lib/
 │   ├── ai/providers.ts             # getModel(provider, modelId) abstraction
-│   └── store/canvas-store.ts       # Zustand store — all canvas/node/edge state
+│   ├── store/canvas-store.ts       # Zustand store — all canvas/node/edge state
+│   └── supabase/
+│       ├── client.ts               # Browser client (createBrowserClient)
+│       ├── server.ts               # Server client (createServerClient, async cookies)
+│       └── admin.ts                # Service role client (bypasses RLS)
+├── proxy.ts                        # Auth session refresh + route protection (Next.js 16)
 └── types/canvas.ts                 # ChatNodeData, ChatFlowNode, ModelConfig, etc.
 ```
 
 ## Architecture Decisions
 
 - **All AI calls go through server** — API routes proxy to Anthropic/OpenAI. Never call from client.
-- **React Flow node ID = future Postgres record ID** — same UUID everywhere.
+- **React Flow node ID = Postgres record ID** — same UUID everywhere.
 - **Cheap models for background tasks** — Haiku for summarization and auto-titling; frontier models for user-facing chat.
 - **Context linking via summaries** — connected nodes inject rolling summaries into the system prompt, not raw message history. Keeps token costs manageable.
 - **Nodes are always compact cards on canvas** — no expanded on-canvas view. Hover shows a message preview popover; click opens the sidebar drawer.
@@ -90,9 +100,29 @@ Zustand store is the single source of truth. Key actions:
 - GPT-4o (`gpt-4o`)
 - GPT-4o Mini (`gpt-4o-mini`)
 
+## Auth & Database
+
+### Auth Flow
+- Email/password via Supabase Auth
+- `src/proxy.ts` refreshes sessions on every request and protects `/canvas/*` and `/api/*` routes
+- Always use `supabase.auth.getUser()` (server-verified), never `getSession()` alone
+- All API routes have auth guards at the top of their POST handlers
+
+### Database Schema (Supabase Postgres)
+- `profiles` — auto-created via trigger on `auth.users` insert
+- `projects` — canvases, owned by a user
+- `nodes` — chat nodes with position, model config, summary
+- `edges` — connections between nodes (text ID matching React Flow format)
+- `messages` — chat messages (append-only, belongs to a node)
+- All tables have RLS policies scoped to project owner via `auth.uid()`
+
+### Supabase Clients
+- **Browser** (`lib/supabase/client.ts`): `createBrowserClient` — for `'use client'` components
+- **Server** (`lib/supabase/server.ts`): `createServerClient` — for server components, API routes (note: `cookies()` must be awaited in Next.js 16)
+- **Admin** (`lib/supabase/admin.ts`): service role client — bypasses RLS
+
 ## What's Not Built Yet
-- Auth (Supabase)
-- Persistence / database (everything is in-memory Zustand)
+- Persistence / sync (canvas state still in-memory Zustand, not yet synced to Supabase)
 - Multiplayer / realtime sync (Yjs planned)
 - Agent nodes (mediator/strategist)
 - File nodes
