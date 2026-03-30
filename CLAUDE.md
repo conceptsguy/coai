@@ -81,7 +81,8 @@ doc/
 supabase/
 └── migrations/
     ├── 001_*.sql                    # Initial schema (profiles, projects, nodes, edges, messages)
-    └── 002_yjs_documents.sql        # Yjs binary snapshot storage
+    ├── 002_yjs_documents.sql        # Yjs binary snapshot storage
+    └── 003_project_members.sql      # Email-based invites, updated RLS policies
 ```
 
 ## Architecture Decision Records
@@ -105,6 +106,7 @@ Current ADRs:
 - **0008** — Compact Card Nodes with Sidebar Drawer
 - **0009** — Debounced Position and Metadata Sync
 - **0010** — Email/Password Auth via Supabase
+- **0011** — Email-Based Invite for Project Members
 
 ## Design System
 
@@ -164,8 +166,9 @@ Zustand store is a **reactive projection** of the Yjs document. Actions write to
 - `nodes` — chat nodes with position, model config, summary
 - `edges` — connections between nodes (text ID matching React Flow format)
 - `messages` — chat messages (append-only, belongs to a node)
+- `project_members` — email-based invites (profile_id null = pending, resolved on signup)
 - `yjs_documents` — binary Yjs state snapshots (one per project, used by PartyKit for persistence)
-- All tables have RLS policies scoped to project owner via `auth.uid()`
+- RLS uses `is_project_member()` helper — owner OR member access on all tables
 
 ### Supabase Clients
 - **Browser** (`lib/supabase/client.ts`): `createBrowserClient` — for `'use client'` components
@@ -219,7 +222,6 @@ npm run dev
 - `NEXT_PUBLIC_PARTYKIT_HOST` — PartyKit server host (default: `localhost:1999`)
 
 ## What's Not Built Yet
-- Sharing / access control (project_members table, share dialog)
 - Offline support (y-indexeddb for local persistence)
 - Agent nodes (mediator/strategist)
 - File nodes

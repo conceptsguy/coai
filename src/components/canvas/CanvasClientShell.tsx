@@ -15,9 +15,10 @@ interface CanvasClientShellProps {
   projectId: string;
   userId: string;
   userEmail: string;
+  role: "owner" | "editor";
 }
 
-function CanvasInner({ userId, userEmail }: { userId: string; userEmail: string }) {
+function CanvasInner({ userId, userEmail, role, projectId }: { userId: string; userEmail: string; role: "owner" | "editor"; projectId: string }) {
   const { doc, awareness, synced, connected } = useYjs();
   const hydrated = useCanvasStore((s) => s.hydrated);
   const leftPanelOpen = useCanvasStore((s) => s.leftPanelOpen);
@@ -45,7 +46,7 @@ function CanvasInner({ userId, userEmail }: { userId: string; userEmail: string 
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden">
-      <TopBar connected={connected} collaborators={collaborators} />
+      <TopBar connected={connected} collaborators={collaborators} role={role} projectId={projectId} />
       <div className="flex-1 flex overflow-hidden relative">
         <ReactFlowProvider>
           {leftPanelOpen && <ChatListPanel />}
@@ -60,10 +61,10 @@ function CanvasInner({ userId, userEmail }: { userId: string; userEmail: string 
   );
 }
 
-export function CanvasClientShell({ projectId, userId, userEmail }: CanvasClientShellProps) {
+export function CanvasClientShell({ projectId, userId, userEmail, role }: CanvasClientShellProps) {
   return (
     <YjsProvider projectId={projectId}>
-      <CanvasInner userId={userId} userEmail={userEmail} />
+      <CanvasInner userId={userId} userEmail={userEmail} role={role} projectId={projectId} />
     </YjsProvider>
   );
 }

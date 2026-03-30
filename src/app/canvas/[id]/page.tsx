@@ -15,14 +15,16 @@ export default async function CanvasPage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Verify project exists and user has access
+  // Verify project exists and user has access (RLS allows owner + members)
   const { data: project } = await supabase
     .from("projects")
-    .select("id")
+    .select("id, owner_id")
     .eq("id", projectId)
     .single();
 
   if (!project) redirect("/");
+
+  const role = project.owner_id === user.id ? "owner" : "editor";
 
   // All data loading happens via Yjs sync — pass projectId + user info for node ownership
   return (
@@ -30,6 +32,7 @@ export default async function CanvasPage({
       projectId={projectId}
       userId={user.id}
       userEmail={user.email ?? ""}
+      role={role}
     />
   );
 }

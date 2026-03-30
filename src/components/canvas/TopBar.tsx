@@ -6,6 +6,7 @@ import { ThemeToggle } from "@/components/canvas/ThemeToggle";
 import { CollaboratorAvatars } from "@/components/canvas/CollaboratorAvatars";
 import { Button } from "@/components/ui/button";
 import { PanelLeft } from "lucide-react";
+import { ShareDialog } from "@/components/canvas/ShareDialog";
 import type { CollaboratorState } from "@/types/canvas";
 
 function EditableProjectTitle() {
@@ -115,9 +116,11 @@ function EditableProjectPurpose() {
 interface TopBarProps {
   connected: boolean;
   collaborators: CollaboratorState[];
+  role: "owner" | "editor";
+  projectId: string;
 }
 
-export function TopBar({ connected, collaborators }: TopBarProps) {
+export function TopBar({ connected, collaborators, role, projectId }: TopBarProps) {
   const toggleLeftPanel = useCanvasStore((s) => s.toggleLeftPanel);
   const leftPanelOpen = useCanvasStore((s) => s.leftPanelOpen);
 
@@ -149,6 +152,7 @@ export function TopBar({ connected, collaborators }: TopBarProps) {
         {collaborators.length > 0 && (
           <CollaboratorAvatars collaborators={collaborators} />
         )}
+        {role === "owner" && <ShareDialog projectId={projectId} />}
         <ThemeToggle />
       </div>
     </div>
