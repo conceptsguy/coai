@@ -24,6 +24,12 @@ export default async function CanvasPage({
 
   if (!project) redirect("/");
 
-  // All data loading happens via Yjs sync — just pass the projectId
-  return <CanvasClientShell projectId={projectId} />;
+  // All data loading happens via Yjs sync — pass projectId + user info for node ownership
+  return (
+    <CanvasClientShell
+      projectId={projectId}
+      userId={user.id}
+      userEmail={user.email ?? ""}
+    />
+  );
 }

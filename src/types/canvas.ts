@@ -33,6 +33,12 @@ export interface ChatNodeData extends Record<string, unknown> {
   summary: string;
   /** When the summary was last updated (message count at time of update) */
   summaryMessageCount: number;
+  /** ISO timestamp when node was created */
+  createdAt: string;
+  /** Supabase user ID of creator */
+  createdBy: string;
+  /** Display name of creator (email prefix) */
+  createdByName: string;
 }
 
 export type ChatFlowNode = Node<ChatNodeData, "chat">;

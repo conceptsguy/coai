@@ -44,9 +44,11 @@ const defaultEdgeOptions: DefaultEdgeOptions = {
 
 interface CanvasEditorProps {
   collaborators: CollaboratorState[];
+  userId: string;
+  userEmail: string;
 }
 
-export function CanvasEditor({ collaborators }: CanvasEditorProps) {
+export function CanvasEditor({ collaborators, userId, userEmail }: CanvasEditorProps) {
   const { nodes, edges, onNodesChange, onEdgesChange, addChatNode, selectedNodeId } =
     useCanvasStore();
   const { screenToFlowPosition } = useReactFlow();
@@ -61,17 +63,25 @@ export function CanvasEditor({ collaborators }: CanvasEditorProps) {
     };
   }, [screenToFlowPosition]);
 
-  // Initialize local awareness with user info
+  // Derive display name from email prefix
+  const displayName = userEmail.split("@")[0] || "User";
+
+  // Initialize local awareness with real user info
   useEffect(() => {
     if (!awareness) return;
     setLocalAwareness(awareness, {
-      userId: awareness.clientID.toString(),
-      displayName: "User " + (awareness.clientID % 100),
+      userId,
+      displayName,
       color: getCollaboratorColor(awareness.clientID),
       cursor: null,
       selectedNodeId: null,
     });
-  }, [awareness]);
+  }, [awareness, userId, displayName]);
+
+  // Set current user info on the store so node creation can stamp ownership
+  useEffect(() => {
+    useCanvasStore.getState().setCurrentUser(userId, displayName);
+  }, [userId, displayName]);
 
   // Broadcast selected node to other collaborators
   useEffect(() => {

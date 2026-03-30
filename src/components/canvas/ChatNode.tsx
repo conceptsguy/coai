@@ -4,7 +4,6 @@ import { memo, useState, useRef, useEffect, useCallback } from "react";
 import { Handle, Position, type NodeProps, useEdges } from "@xyflow/react";
 import type { ChatFlowNode, CollaboratorState } from "@/types/canvas";
 import { useCanvasStore } from "@/lib/store/canvas-store";
-import { Badge } from "@/components/ui/badge";
 import { useContext, createContext } from "react";
 
 /**
@@ -13,61 +12,90 @@ import { useContext, createContext } from "react";
  */
 export const CollaboratorsContext = createContext<CollaboratorState[]>([]);
 
-const inactiveClass = "!bg-muted-foreground/30 !border-muted-foreground/20";
-const inActiveClass = "!bg-blue-500 !border-blue-300";
-const outActiveClass = "!bg-orange-500 !border-orange-300";
+// ─── Handle styling (Blender-inspired: small, flush, borderless) ───
 
-/**
- * Renders 4 handles: input (target) + output (source) on BOTH left and right sides.
- * Offset vertically so they don't overlap — input on top, output on bottom.
- */
+const handleSize = "!w-1.5 !h-1.5";
+const inactiveHandle = `${handleSize} !border-0 !bg-muted-foreground/20`;
+const activeTargetHandle = `${handleSize} !border-0 !bg-blue-500/60`;
+const activeSourceHandle = `${handleSize} !border-0 !bg-orange-500/60`;
+
 function NodeHandles({
   incomingCount,
   outgoingCount,
-  size = "sm",
 }: {
   incomingCount: number;
   outgoingCount: number;
-  size?: "sm" | "md";
 }) {
-  const s = size === "sm" ? "!w-2 !h-2" : "!w-2.5 !h-2.5";
-
   return (
     <>
-      {/* Left side — input top, output bottom */}
+      {/* Left side */}
       <Handle
         type="target"
         position={Position.Left}
         id="target-left"
-        className={`${s} !border-2 ${incomingCount > 0 ? inActiveClass : inactiveClass}`}
-        style={{ top: "35%" }}
+        className={incomingCount > 0 ? activeTargetHandle : inactiveHandle}
+        style={{ top: "50%" }}
       />
       <Handle
         type="source"
         position={Position.Left}
         id="source-left"
-        className={`${s} !border-2 ${outgoingCount > 0 ? outActiveClass : inactiveClass}`}
-        style={{ top: "65%" }}
+        className={outgoingCount > 0 ? activeSourceHandle : inactiveHandle}
+        style={{ top: "50%" }}
       />
 
-      {/* Right side — input top, output bottom */}
+      {/* Right side */}
       <Handle
         type="target"
         position={Position.Right}
         id="target-right"
-        className={`${s} !border-2 ${incomingCount > 0 ? inActiveClass : inactiveClass}`}
-        style={{ top: "35%" }}
+        className={incomingCount > 0 ? activeTargetHandle : inactiveHandle}
+        style={{ top: "50%" }}
       />
       <Handle
         type="source"
         position={Position.Right}
         id="source-right"
-        className={`${s} !border-2 ${outgoingCount > 0 ? outActiveClass : inactiveClass}`}
-        style={{ top: "65%" }}
+        className={outgoingCount > 0 ? activeSourceHandle : inactiveHandle}
+        style={{ top: "50%" }}
       />
     </>
   );
 }
+
+// ─── Relative time utility ───
+
+function relativeTime(iso: string): string {
+  if (!iso) return "";
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+// ─── Owner avatar (initials) ───
+
+function OwnerAvatar({ name }: { name: string }) {
+  const initials = name
+    .split(/[\s._-]+/)
+    .slice(0, 2)
+    .map((s) => s[0]?.toUpperCase() ?? "")
+    .join("");
+
+  return (
+    <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center shrink-0">
+      <span className="text-[9px] font-medium text-muted-foreground leading-none">
+        {initials || "?"}
+      </span>
+    </div>
+  );
+}
+
+// ─── Editable title ───
 
 function EditableTitle({
   nodeId,
@@ -135,6 +163,8 @@ function EditableTitle({
   );
 }
 
+// ─── Hover preview (progressive disclosure) ───
+
 function HoverPreview({ data }: { data: ChatFlowNode["data"] }) {
   const visibleMessages = data.messages
     .filter((m) => m.role !== "system")
@@ -172,6 +202,8 @@ function HoverPreview({ data }: { data: ChatFlowNode["data"] }) {
   );
 }
 
+// ─── Main node component ───
+
 function ChatNodeComponent({ id, data }: NodeProps<ChatFlowNode>) {
   const { openSidebar } = useCanvasStore();
   const edges = useEdges();
@@ -182,6 +214,12 @@ function ChatNodeComponent({ id, data }: NodeProps<ChatFlowNode>) {
   const messageCount = data.messages.filter((m) => m.role !== "system").length;
   const incomingCount = edges.filter((e) => e.target === id).length;
   const outgoingCount = edges.filter((e) => e.source === id).length;
+
+  // Derive last updated timestamp from most recent message
+  const lastMessage = [...data.messages]
+    .reverse()
+    .find((m) => m.role !== "system");
+  const updatedAt = lastMessage?.createdAt || data.createdAt;
 
   // Find collaborators who have this node selected
   const viewers = collaborators.filter((c) => c.selectedNodeId === id);
@@ -197,7 +235,7 @@ function ChatNodeComponent({ id, data }: NodeProps<ChatFlowNode>) {
 
   return (
     <div
-      className={`relative bg-card rounded-md px-3 py-2 shadow-sm cursor-pointer min-w-[180px] hover:shadow-md transition-shadow ${
+      className={`relative bg-card rounded-xl px-3 py-2.5 shadow-sm cursor-pointer min-w-[180px] max-w-[220px] hover:shadow-md transition-shadow ${
         viewers.length > 0 ? "border-2" : "border"
       }`}
       style={{
@@ -207,51 +245,22 @@ function ChatNodeComponent({ id, data }: NodeProps<ChatFlowNode>) {
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      <NodeHandles incomingCount={incomingCount} outgoingCount={outgoingCount} size="sm" />
+      <NodeHandles incomingCount={incomingCount} outgoingCount={outgoingCount} />
 
       <div className="flex items-center gap-2">
-        <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
-        <EditableTitle nodeId={id} title={data.title} className="text-sm font-medium truncate" />
-        <Badge variant="secondary" className="text-[10px] px-1 py-0 shrink-0">
-          {data.modelConfig.label}
-        </Badge>
+        {data.createdByName && <OwnerAvatar name={data.createdByName} />}
+        <EditableTitle
+          nodeId={id}
+          title={data.title}
+          className="text-sm font-medium truncate"
+        />
       </div>
 
-      <div className="flex items-center gap-2 mt-1">
-        {messageCount > 0 && (
-          <span className="text-[10px] text-muted-foreground">
-            {messageCount} msg{messageCount !== 1 ? "s" : ""}
+      {updatedAt && (
+        <div className={`mt-1 ${data.createdByName ? "pl-7" : ""}`}>
+          <span className="font-mono text-[10px] text-muted-foreground">
+            {relativeTime(updatedAt)}
           </span>
-        )}
-        {data.lastMessagePreview && (
-          <p className="text-xs text-muted-foreground truncate max-w-[140px]">
-            {data.lastMessagePreview}
-          </p>
-        )}
-        {incomingCount > 0 && (
-          <Badge variant="outline" className="text-[9px] px-1 py-0 text-blue-600 border-blue-300">
-            {incomingCount} in
-          </Badge>
-        )}
-        {outgoingCount > 0 && (
-          <Badge variant="outline" className="text-[9px] px-1 py-0 text-orange-600 border-orange-300">
-            {outgoingCount} out
-          </Badge>
-        )}
-      </div>
-
-      {/* Collaborator viewing indicator */}
-      {viewers.length > 0 && (
-        <div className="flex items-center gap-1 mt-1">
-          {viewers.map((v) => (
-            <span
-              key={v.userId}
-              className="inline-flex items-center gap-1 text-[9px] font-medium text-white rounded-full px-1.5 py-0.5"
-              style={{ backgroundColor: v.color }}
-            >
-              {v.displayName}
-            </span>
-          ))}
         </div>
       )}
 

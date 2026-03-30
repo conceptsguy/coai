@@ -13,9 +13,11 @@ import { BottomInput } from "@/components/canvas/BottomInput";
 
 interface CanvasClientShellProps {
   projectId: string;
+  userId: string;
+  userEmail: string;
 }
 
-function CanvasInner() {
+function CanvasInner({ userId, userEmail }: { userId: string; userEmail: string }) {
   const { doc, awareness, synced, connected } = useYjs();
   const hydrated = useCanvasStore((s) => s.hydrated);
   const leftPanelOpen = useCanvasStore((s) => s.leftPanelOpen);
@@ -44,11 +46,11 @@ function CanvasInner() {
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden">
       <TopBar connected={connected} collaborators={collaborators} />
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
         <ReactFlowProvider>
           {leftPanelOpen && <ChatListPanel />}
           <div className="flex-1 relative">
-            <CanvasEditor collaborators={collaborators} />
+            <CanvasEditor collaborators={collaborators} userId={userId} userEmail={userEmail} />
             {!sidebarOpen && <BottomInput />}
           </div>
           <ChatSidebar />
@@ -58,10 +60,10 @@ function CanvasInner() {
   );
 }
 
-export function CanvasClientShell({ projectId }: CanvasClientShellProps) {
+export function CanvasClientShell({ projectId, userId, userEmail }: CanvasClientShellProps) {
   return (
     <YjsProvider projectId={projectId}>
-      <CanvasInner />
+      <CanvasInner userId={userId} userEmail={userEmail} />
     </YjsProvider>
   );
 }

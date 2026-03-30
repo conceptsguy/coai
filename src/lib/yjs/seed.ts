@@ -83,6 +83,9 @@ export async function seedYjsDocIfEmpty(
       m.set("summary", node.summary);
       m.set("summaryMessageCount", node.summaryMessageCount);
       m.set("lastMessagePreview", "");
+      m.set("createdAt", "");
+      m.set("createdBy", "");
+      m.set("createdByName", "");
       nm.set(node.id, m);
     }
 

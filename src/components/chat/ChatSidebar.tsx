@@ -7,10 +7,11 @@ import { DefaultChatTransport } from "ai";
 import { v4 as uuid } from "uuid";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { X, ArrowUp } from "lucide-react";
+import { X, ArrowUp, Maximize2, Minimize2, ChevronDown } from "lucide-react";
 import { ModelSelector } from "@/components/chat/ModelSelector";
 import type { ConnectedContext } from "@/types/canvas";
 import { syncInsertMessage } from "@/lib/supabase/sync";
+import { cn } from "@/lib/utils";
 
 function EditableSidebarTitle({ nodeId, title }: { nodeId: string; title: string }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -58,6 +59,38 @@ function EditableSidebarTitle({ nodeId, title }: { nodeId: string; title: string
     >
       {title}
     </h2>
+  );
+}
+
+function ConnectedContextFooter({ contexts }: { contexts: ConnectedContext[] }) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (contexts.length === 0) return null;
+
+  return (
+    <div className="px-3 pb-2">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors w-full cursor-pointer"
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+        Informed by {contexts.length} connected chat{contexts.length !== 1 ? "s" : ""}
+        <ChevronDown className={cn("h-2.5 w-2.5 ml-auto transition-transform", expanded && "rotate-180")} />
+      </button>
+      {expanded && (
+        <div className="mt-1 space-y-0.5 pl-3">
+          {contexts.map((ctx) => (
+            <div key={ctx.sourceNodeId} className="text-[10px] text-muted-foreground truncate">
+              &larr; {ctx.sourceTitle}
+              {ctx.summary
+                ? <span className="opacity-50"> &middot; summarized</span>
+                : <span className="opacity-50"> &middot; no summary yet</span>
+              }
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -117,7 +150,9 @@ export function ChatSidebar() {
     edges,
     selectedNodeId,
     sidebarOpen,
+    sidebarExpanded,
     closeSidebar,
+    toggleSidebarExpanded,
     getConnectedContexts,
     _pendingFirstMessage,
     setPendingFirstMessage,
@@ -276,52 +311,47 @@ export function ChatSidebar() {
   if (!sidebarOpen || !selectedNode) return null;
 
   return (
-    <div className="w-[420px] h-full border-l border-border bg-card flex flex-col shrink-0">
-      {/* Header — title + close */}
-      <div className="px-3 py-2 border-b border-border flex items-center justify-between gap-2">
-        <EditableSidebarTitle nodeId={selectedNode.id} title={selectedNode.data.title} />
-        <Button variant="ghost" size="icon-xs" onClick={closeSidebar} className="h-7 w-7 shrink-0">
-          <X className="h-3.5 w-3.5" />
-        </Button>
-      </div>
-
-      {/* Connected context indicator */}
-      {connectedContexts.length > 0 && (
-        <div className="px-4 py-2 border-b border-border bg-blue-50 dark:bg-blue-950/30">
-          <div className="flex items-center gap-1.5 mb-1">
-            <span className="w-2 h-2 rounded-full bg-blue-500" />
-            <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
-              Informed by {connectedContexts.length} connected chat{connectedContexts.length !== 1 ? "s" : ""}
-            </span>
-          </div>
-          <div className="space-y-1">
-            {connectedContexts.map((ctx) => (
-              <div
-                key={ctx.sourceNodeId}
-                className="text-[11px] text-blue-600 dark:text-blue-400 pl-3.5"
-              >
-                &larr; {ctx.sourceTitle}
-                {ctx.summary ? (
-                  <span className="text-blue-500/60 dark:text-blue-500/40"> &middot; summarized</span>
-                ) : (
-                  <span className="text-blue-500/60 dark:text-blue-500/40"> &middot; no summary yet</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+    <div
+      className={cn(
+        "absolute bg-card flex flex-col z-20 border border-border shadow-lg",
+        sidebarExpanded
+          ? "inset-0"
+          : "right-3 top-3 bottom-3 w-[420px] rounded-xl"
       )}
+    >
+      {/* Header — title + expand + close */}
+      <div className={cn(
+        "px-3 py-2 border-b border-border flex items-center justify-between gap-2",
+        !sidebarExpanded && "rounded-t-xl"
+      )}>
+        <EditableSidebarTitle nodeId={selectedNode.id} title={selectedNode.data.title} />
+        <div className="flex items-center gap-0.5 shrink-0">
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={toggleSidebarExpanded}
+            className="h-7 w-7"
+          >
+            {sidebarExpanded
+              ? <Minimize2 className="h-3.5 w-3.5" />
+              : <Maximize2 className="h-3.5 w-3.5" />}
+          </Button>
+          <Button variant="ghost" size="icon-xs" onClick={closeSidebar} className="h-7 w-7 shrink-0">
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-3" ref={scrollRef}>
-        <div className="space-y-3">
+        <div className={cn("space-y-3", sidebarExpanded && "max-w-2xl mx-auto")}>
           {messages.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-8">
               Start a conversation with {selectedNode.data.modelConfig.label}
               {connectedContexts.length > 0 && (
                 <>
                   <br />
-                  <span className="text-blue-600 text-xs">
+                  <span className="text-muted-foreground text-xs">
                     This chat has context from {connectedContexts.length} connected chat{connectedContexts.length !== 1 ? "s" : ""}
                   </span>
                 </>
@@ -351,15 +381,9 @@ export function ChatSidebar() {
         </div>
       </div>
 
-      {/* Bottom section — model selector + input */}
-      <div className="border-t border-border">
-        {/* Model selector */}
-        <div className="px-3 py-2">
-          <ModelSelector nodeId={selectedNode.id} />
-        </div>
-
-        {/* Input */}
-        <form onSubmit={onSubmit} className="px-3 pb-3">
+      {/* Bottom section — input + model selector + context footer */}
+      <div className={cn("border-t border-border", !sidebarExpanded && "rounded-b-xl")}>
+        <form onSubmit={onSubmit} className={cn("px-3 pt-3", sidebarExpanded && "max-w-2xl mx-auto")}>
           <div className="relative">
             <Textarea
               value={input}
@@ -378,12 +402,14 @@ export function ChatSidebar() {
               <ArrowUp className="h-3.5 w-3.5" />
             </Button>
           </div>
-          <div className="flex items-center justify-between mt-1">
+          <div className="flex items-center justify-between mt-1 mb-2">
+            <ModelSelector nodeId={selectedNode.id} />
             <span className="text-[10px] text-muted-foreground">
-              Enter to send &middot; Shift+Enter for newline
+              Enter to send
             </span>
           </div>
         </form>
+        <ConnectedContextFooter contexts={connectedContexts} />
       </div>
     </div>
   );

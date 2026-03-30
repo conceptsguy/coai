@@ -143,13 +143,16 @@ The most important visual element. Must be:
 └─────────────────────────┘
 ```
 
-### Sidebar drawer
+### Chat panel (floating)
 
-- Fixed right side, `w-[420px]`, `border-l border-border`
-- `bg-card` with `shadow-lg`
-- Header: node title (editable), model selector, close button
-- Body: scrollable message list
-- Footer: input area, fixed to bottom
+- Absolute-positioned floating panel, not a docked sidebar
+- Normal mode: `absolute right-3 top-3 bottom-3 w-[420px] rounded-xl border border-border bg-card shadow-lg z-20`
+- Fullscreen mode: `absolute inset-0 bg-card z-20` — no rounding, no margin
+- Header: node title (editable), expand/collapse button (Maximize2/Minimize2), close button
+- Body: scrollable message list (max-w-2xl centered in fullscreen)
+- Footer: input area, model dropdown (compact, opens upward), connected context footer (collapsible)
+- Model selector: dropdown trigger showing current model + chevron, not a button group
+- Connected contexts ("Informed by"): collapsible footer at the bottom, `text-[10px] text-muted-foreground`, small blue dot indicator. No colored background.
 - **No animation on open/close** — instant. Tool-grade response.
 
 ### Toolbar / controls

@@ -24,6 +24,9 @@ export function nodeToYMap(node: ChatFlowNode): Y.Map<unknown> {
   m.set("summary", node.data.summary);
   m.set("summaryMessageCount", node.data.summaryMessageCount);
   m.set("lastMessagePreview", node.data.lastMessagePreview);
+  m.set("createdAt", node.data.createdAt);
+  m.set("createdBy", node.data.createdBy);
+  m.set("createdByName", node.data.createdByName);
   return m;
 }
 
@@ -57,6 +60,9 @@ export function yMapToNode(
       isCollapsed: (m.get("isCollapsed") as boolean) ?? true,
       summary: (m.get("summary") as string) ?? "",
       summaryMessageCount: (m.get("summaryMessageCount") as number) ?? 0,
+      createdAt: (m.get("createdAt") as string) ?? "",
+      createdBy: (m.get("createdBy") as string) ?? "",
+      createdByName: (m.get("createdByName") as string) ?? "",
     } satisfies ChatNodeData,
   };
 }

@@ -31,7 +31,8 @@ import {
 export function yjsAddNode(
   doc: Y.Doc,
   position: { x: number; y: number },
-  modelConfig: ModelConfig
+  modelConfig: ModelConfig,
+  creator?: { userId: string; displayName: string }
 ): string {
   const id = uuid();
   const node: ChatFlowNode = {
@@ -47,6 +48,9 @@ export function yjsAddNode(
       isCollapsed: true,
       summary: "",
       summaryMessageCount: 0,
+      createdAt: new Date().toISOString(),
+      createdBy: creator?.userId ?? "",
+      createdByName: creator?.displayName ?? "",
     },
   };
 

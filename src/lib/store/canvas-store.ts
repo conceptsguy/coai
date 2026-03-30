@@ -49,9 +49,13 @@ interface CanvasState {
   _pendingFirstMessage: string | null;
   /** Registered by CanvasEditor so other components can compute flow positions */
   _screenToFlowPosition: ((point: { x: number; y: number }) => { x: number; y: number }) | null;
+  /** Current user info for stamping node ownership */
+  _currentUserId: string;
+  _currentUserName: string;
 
   // ── Yjs doc binding ──
   setYjsDoc: (doc: Y.Doc | null) => void;
+  setCurrentUser: (userId: string, displayName: string) => void;
 
   // ── Node actions (write to Yjs) ──
   addChatNode: (position: { x: number; y: number }, modelConfig: ModelConfig) => string;
@@ -84,8 +88,10 @@ interface CanvasState {
   updateProjectPurpose: (purpose: string) => void;
 
   // ── Sidebar ──
+  sidebarExpanded: boolean;
   openSidebar: (nodeId: string) => void;
   closeSidebar: () => void;
+  toggleSidebarExpanded: () => void;
 
   // ── Left panel ──
   toggleLeftPanel: () => void;
@@ -119,20 +125,30 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   // ── Local-only state ──
   selectedNodeId: null,
   sidebarOpen: false,
+  sidebarExpanded: false,
   leftPanelOpen: true,
   _yjsDoc: null,
   _streamingNodeId: null,
   _pendingFirstMessage: null,
   _screenToFlowPosition: null,
+  _currentUserId: "",
+  _currentUserName: "",
 
   setYjsDoc: (doc) => {
     set({ _yjsDoc: doc });
   },
 
+  setCurrentUser: (userId, displayName) => {
+    set({ _currentUserId: userId, _currentUserName: displayName });
+  },
+
   addChatNode: (position, modelConfig) => {
-    const doc = get()._yjsDoc;
+    const { _yjsDoc: doc, _currentUserId, _currentUserName } = get();
     if (!doc) return "";
-    return yjsAddNode(doc, position, modelConfig);
+    return yjsAddNode(doc, position, modelConfig, {
+      userId: _currentUserId,
+      displayName: _currentUserName,
+    });
   },
 
   removeNode: (nodeId) => {
@@ -296,7 +312,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   closeSidebar: () => {
-    set({ sidebarOpen: false });
+    set({ sidebarOpen: false, sidebarExpanded: false });
+  },
+
+  toggleSidebarExpanded: () => {
+    set((state) => ({ sidebarExpanded: !state.sidebarExpanded }));
   },
 
   toggleLeftPanel: () => {

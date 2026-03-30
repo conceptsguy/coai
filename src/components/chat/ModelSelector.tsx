@@ -2,6 +2,14 @@
 
 import { useCanvasStore } from "@/lib/store/canvas-store";
 import { AVAILABLE_MODELS, type ModelConfig } from "@/types/canvas";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from "@/components/ui/dropdown-menu";
+import { ChevronDown } from "lucide-react";
 
 interface ModelSelectorProps {
   nodeId: string;
@@ -21,20 +29,26 @@ export function ModelSelector({ nodeId }: ModelSelectorProps) {
   };
 
   return (
-    <div className="flex gap-1 flex-wrap">
-      {AVAILABLE_MODELS.map((model) => (
-        <button
-          key={model.modelId}
-          onClick={() => setModel(model)}
-          className={`px-2 py-1 rounded text-xs border transition-colors ${
-            node.data.modelConfig.modelId === model.modelId
-              ? "bg-primary text-primary-foreground border-primary"
-              : "bg-background text-foreground border-border hover:bg-muted"
-          }`}
+    <DropdownMenu>
+      <DropdownMenuTrigger className="flex items-center gap-1 px-2 py-1 rounded text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer">
+        {node.data.modelConfig.label}
+        <ChevronDown className="h-3 w-3" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="top" sideOffset={4}>
+        <DropdownMenuRadioGroup
+          value={node.data.modelConfig.modelId}
+          onValueChange={(value) => {
+            const model = AVAILABLE_MODELS.find((m) => m.modelId === value);
+            if (model) setModel(model);
+          }}
         >
-          {model.label}
-        </button>
-      ))}
-    </div>
+          {AVAILABLE_MODELS.map((model) => (
+            <DropdownMenuRadioItem key={model.modelId} value={model.modelId}>
+              {model.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
