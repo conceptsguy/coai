@@ -56,6 +56,20 @@ export interface ConnectionEdgeData extends Record<string, unknown> {
 
 export type ConnectionEdge = Edge<ConnectionEdgeData>;
 
+/** Which view the sidebar is displaying */
+export type SidebarMode = "chat" | "source-detail";
+
+/** Resolved detail about a context source edge, for display in the sidebar */
+export interface SourceDetail {
+  edgeId: string;
+  sourceNodeId: string;
+  sourceTitle: string;
+  targetNodeId: string;
+  targetTitle: string;
+  summary: string;
+  summaryMessageCount: number;
+}
+
 export interface ProjectMetadata {
   title: string;
   purpose: string;

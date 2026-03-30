@@ -7,6 +7,8 @@ import {
   type ChatMessage,
   type ConnectedContext,
   type ProjectMetadata,
+  type SidebarMode,
+  type SourceDetail,
 } from "@/types/canvas";
 import {
   applyNodeChanges,
@@ -39,7 +41,9 @@ interface CanvasState {
 
   // ── Local-only state (not synced) ──
   selectedNodeId: string | null;
+  selectedEdgeId: string | null;
   sidebarOpen: boolean;
+  sidebarMode: SidebarMode;
   leftPanelOpen: boolean;
   /** Yjs doc reference — set by the provider */
   _yjsDoc: Y.Doc | null;
@@ -93,6 +97,11 @@ interface CanvasState {
   closeSidebar: () => void;
   toggleSidebarExpanded: () => void;
 
+  // ── Edge selection ──
+  selectEdge: (edgeId: string) => void;
+  getSourceDetail: (edgeId: string) => SourceDetail | null;
+  removeEdge: (edgeId: string) => void;
+
   // ── Left panel ──
   toggleLeftPanel: () => void;
 
@@ -124,7 +133,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   // ── Local-only state ──
   selectedNodeId: null,
+  selectedEdgeId: null,
   sidebarOpen: false,
+  sidebarMode: "chat" as SidebarMode,
   sidebarExpanded: false,
   leftPanelOpen: true,
   _yjsDoc: null,
@@ -158,7 +169,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     // Also update local-only state
     set((state) => ({
       selectedNodeId: state.selectedNodeId === nodeId ? null : state.selectedNodeId,
+      selectedEdgeId: null,
       sidebarOpen: state.selectedNodeId === nodeId ? false : state.sidebarOpen,
+      sidebarMode: state.selectedNodeId === nodeId ? "chat" as SidebarMode : state.sidebarMode,
     }));
   },
 
@@ -308,15 +321,52 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   openSidebar: (nodeId) => {
-    set({ selectedNodeId: nodeId, sidebarOpen: true });
+    set({ selectedNodeId: nodeId, selectedEdgeId: null, sidebarMode: "chat" as SidebarMode, sidebarOpen: true });
   },
 
   closeSidebar: () => {
-    set({ sidebarOpen: false, sidebarExpanded: false });
+    set({ sidebarOpen: false, sidebarExpanded: false, selectedEdgeId: null });
   },
 
   toggleSidebarExpanded: () => {
     set((state) => ({ sidebarExpanded: !state.sidebarExpanded }));
+  },
+
+  selectEdge: (edgeId) => {
+    set({
+      selectedEdgeId: edgeId,
+      selectedNodeId: null,
+      sidebarMode: "source-detail" as SidebarMode,
+      sidebarOpen: true,
+    });
+  },
+
+  getSourceDetail: (edgeId) => {
+    const { edges, nodes } = get();
+    const edge = edges.find((e) => e.id === edgeId);
+    if (!edge) return null;
+    const sourceNode = nodes.find((n) => n.id === edge.source);
+    const targetNode = nodes.find((n) => n.id === edge.target);
+    if (!sourceNode || !targetNode) return null;
+    return {
+      edgeId: edge.id,
+      sourceNodeId: sourceNode.id,
+      sourceTitle: sourceNode.data.title,
+      targetNodeId: targetNode.id,
+      targetTitle: targetNode.data.title,
+      summary: sourceNode.data.summary || "",
+      summaryMessageCount: sourceNode.data.summaryMessageCount,
+    };
+  },
+
+  removeEdge: (edgeId) => {
+    const doc = get()._yjsDoc;
+    if (doc) yjsRemoveEdge(doc, edgeId);
+    set((state) => ({
+      selectedEdgeId: state.selectedEdgeId === edgeId ? null : state.selectedEdgeId,
+      sidebarOpen: state.selectedEdgeId === edgeId ? false : state.sidebarOpen,
+      sidebarMode: state.selectedEdgeId === edgeId ? "chat" as SidebarMode : state.sidebarMode,
+    }));
   },
 
   toggleLeftPanel: () => {

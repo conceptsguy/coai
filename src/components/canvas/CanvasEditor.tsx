@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import {
   ReactFlow,
   Background,
@@ -18,7 +18,7 @@ import { useCanvasStore } from "@/lib/store/canvas-store";
 import { ChatNode, CollaboratorsContext } from "@/components/canvas/ChatNode";
 import { CollaboratorCursors } from "@/components/canvas/CollaboratorCursors";
 import { AVAILABLE_MODELS } from "@/types/canvas";
-import type { CollaboratorState } from "@/types/canvas";
+import type { CollaboratorState, ConnectionEdge } from "@/types/canvas";
 import { useYjs } from "@/lib/yjs/provider";
 import { yjsAddEdge } from "@/lib/yjs/bridge";
 import {
@@ -49,7 +49,7 @@ interface CanvasEditorProps {
 }
 
 export function CanvasEditor({ collaborators, userId, userEmail }: CanvasEditorProps) {
-  const { nodes, edges, onNodesChange, onEdgesChange, addChatNode, selectedNodeId } =
+  const { nodes, edges, onNodesChange, onEdgesChange, addChatNode, selectedNodeId, selectedEdgeId, selectEdge, closeSidebar } =
     useCanvasStore();
   const { screenToFlowPosition } = useReactFlow();
   const { doc, awareness } = useYjs();
@@ -158,15 +158,48 @@ export function CanvasEditor({ collaborators, userId, userEmail }: CanvasEditorP
     broadcastCursor(null);
   }, [broadcastCursor]);
 
+  const onEdgeClick = useCallback(
+    (_event: React.MouseEvent, edge: ConnectionEdge) => {
+      selectEdge(edge.id);
+    },
+    [selectEdge]
+  );
+
+  const onPaneClick = useCallback(() => {
+    closeSidebar();
+  }, [closeSidebar]);
+
+  // Highlight the selected edge
+  const styledEdges = useMemo(() => {
+    if (!selectedEdgeId) return edges;
+    return edges.map((edge) => {
+      if (edge.id === selectedEdgeId) {
+        return {
+          ...edge,
+          style: { stroke: "#3b82f6", strokeWidth: 3 },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: "#3b82f6",
+            width: 20,
+            height: 20,
+          },
+        };
+      }
+      return edge;
+    });
+  }, [edges, selectedEdgeId]);
+
   return (
     <div className="w-full h-full">
       <CollaboratorsContext.Provider value={collaborators}>
         <ReactFlow
           nodes={nodes}
-          edges={edges}
+          edges={styledEdges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onEdgeClick={onEdgeClick}
+          onPaneClick={onPaneClick}
           isValidConnection={isValidConnection}
           onDoubleClick={onDoubleClick}
           onMouseMove={onMouseMove}

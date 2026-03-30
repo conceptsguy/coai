@@ -8,6 +8,7 @@ import { v4 as uuid } from "uuid";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { X, ArrowUp, Maximize2, Minimize2, ChevronDown } from "lucide-react";
+import { SourceDetailPanel } from "@/components/chat/SourceDetailPanel";
 import { ModelSelector } from "@/components/chat/ModelSelector";
 import type { ConnectedContext } from "@/types/canvas";
 import { syncInsertMessage } from "@/lib/supabase/sync";
@@ -74,7 +75,7 @@ function ConnectedContextFooter({ contexts }: { contexts: ConnectedContext[] }) 
         className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors w-full cursor-pointer"
       >
         <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
-        Informed by {contexts.length} connected chat{contexts.length !== 1 ? "s" : ""}
+        Informed by {contexts.length} source{contexts.length !== 1 ? "s" : ""}
         <ChevronDown className={cn("h-2.5 w-2.5 ml-auto transition-transform", expanded && "rotate-180")} />
       </button>
       {expanded && (
@@ -150,6 +151,7 @@ export function ChatSidebar() {
     edges,
     selectedNodeId,
     sidebarOpen,
+    sidebarMode,
     sidebarExpanded,
     closeSidebar,
     toggleSidebarExpanded,
@@ -308,7 +310,9 @@ export function ChatSidebar() {
     }
   };
 
-  if (!sidebarOpen || !selectedNode) return null;
+  if (!sidebarOpen) return null;
+  if (sidebarMode === "source-detail") return <SourceDetailPanel />;
+  if (!selectedNode) return null;
 
   return (
     <div
@@ -372,7 +376,7 @@ export function ChatSidebar() {
                 <>
                   <br />
                   <span className="text-muted-foreground text-xs">
-                    This chat has context from {connectedContexts.length} connected chat{connectedContexts.length !== 1 ? "s" : ""}
+                    This chat has context from {connectedContexts.length} source{connectedContexts.length !== 1 ? "s" : ""}
                   </span>
                 </>
               )}
