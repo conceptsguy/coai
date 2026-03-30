@@ -1,6 +1,9 @@
 "use server";
 
+import { Resend } from "resend";
 import { createClient } from "@/lib/supabase/server";
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export type MemberInfo = {
   id: string;
@@ -26,10 +29,10 @@ export async function inviteMember(
     return { success: false, error: "Invalid email address" };
   }
 
-  // Verify caller is project owner
+  // Verify caller is project owner and get project title for the email
   const { data: project } = await supabase
     .from("projects")
-    .select("owner_id")
+    .select("owner_id, title")
     .eq("id", projectId)
     .single();
 
@@ -71,6 +74,36 @@ export async function inviteMember(
   if (error) {
     return { success: false, error: "Failed to send invite" };
   }
+
+  // Send invite email (best-effort — don't fail the invite if email fails)
+  const inviterName = user.email ?? "Someone";
+  const canvasTitle = project.title || "Untitled Canvas";
+  const canvasUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "https://coai.team"}/canvas/${projectId}`;
+
+  await resend.emails.send({
+    from: "Coai <noreply@coai.team>",
+    to: email,
+    subject: `${inviterName} invited you to "${canvasTitle}" on Coai`,
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 0;">
+        <p style="font-size: 14px; color: #333; margin: 0 0 16px;">
+          <strong>${inviterName}</strong> invited you to collaborate on a canvas.
+        </p>
+        <div style="background: #f5f5f4; border-radius: 8px; padding: 16px; margin: 0 0 24px;">
+          <p style="font-size: 14px; font-weight: 600; color: #1a1a1a; margin: 0 0 4px;">${canvasTitle}</p>
+          <p style="font-size: 12px; color: #737373; margin: 0;">Collaborative AI Canvas</p>
+        </div>
+        <a href="${canvasUrl}" style="display: inline-block; background: #3b82f6; color: #fff; font-size: 14px; font-weight: 500; text-decoration: none; padding: 8px 20px; border-radius: 6px;">
+          Open Canvas
+        </a>
+        <p style="font-size: 12px; color: #a3a3a3; margin: 24px 0 0;">
+          ${!profile ? "You'll need to create a Coai account with this email to get started." : ""}
+        </p>
+      </div>
+    `,
+  }).catch(() => {
+    // Swallow email errors — the invite is already saved
+  });
 
   return { success: true, pending: !profile };
 }
