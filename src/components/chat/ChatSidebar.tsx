@@ -319,12 +319,32 @@ export function ChatSidebar() {
           : "right-3 top-3 bottom-3 w-[420px] rounded-xl"
       )}
     >
-      {/* Header — title + expand + close */}
+      {/* Header — avatar + title + expand + close */}
       <div className={cn(
         "px-3 py-2 border-b border-border flex items-center justify-between gap-2",
         !sidebarExpanded && "rounded-t-xl"
       )}>
-        <EditableSidebarTitle nodeId={selectedNode.id} title={selectedNode.data.title} />
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          {selectedNode.data.createdByName && (
+            <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center shrink-0" title={`Created by ${selectedNode.data.createdByName}`}>
+              <span className="text-[10px] font-medium text-muted-foreground leading-none">
+                {selectedNode.data.createdByName
+                  .split(/[\s._-]+/)
+                  .slice(0, 2)
+                  .map((s: string) => s[0]?.toUpperCase() ?? "")
+                  .join("")}
+              </span>
+            </div>
+          )}
+          <div className="min-w-0">
+            <EditableSidebarTitle nodeId={selectedNode.id} title={selectedNode.data.title} />
+            {selectedNode.data.createdByName && (
+              <p className="text-[10px] text-muted-foreground leading-tight truncate">
+                Created by {selectedNode.data.createdByName}
+              </p>
+            )}
+          </div>
+        </div>
         <div className="flex items-center gap-0.5 shrink-0">
           <Button
             variant="ghost"

@@ -94,7 +94,7 @@ export function yMapToEdge(m: Y.Map<unknown>): ConnectionEdge {
     sourceHandle: m.get("sourceHandle") as string | undefined,
     target: m.get("target") as string,
     targetHandle: m.get("targetHandle") as string | undefined,
-    animated: true,
+    animated: false,
     style: EDGE_STYLE,
     markerEnd: EDGE_MARKER,
     data: { direction: "one_way" } satisfies ConnectionEdgeData,

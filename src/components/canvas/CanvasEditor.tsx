@@ -32,7 +32,7 @@ const nodeTypes = {
 };
 
 const defaultEdgeOptions: DefaultEdgeOptions = {
-  animated: true,
+  animated: false,
   style: { stroke: "#3b82f6", strokeWidth: 2 },
   markerEnd: {
     type: MarkerType.ArrowClosed,
@@ -118,7 +118,7 @@ export function CanvasEditor({ collaborators, userId, userEmail }: CanvasEditorP
         sourceHandle: connection.sourceHandle,
         target: connection.target!,
         targetHandle: connection.targetHandle,
-        animated: true,
+        animated: false,
         style: { stroke: "#3b82f6", strokeWidth: 2 },
         markerEnd: {
           type: MarkerType.ArrowClosed,
