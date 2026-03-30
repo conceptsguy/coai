@@ -26,7 +26,7 @@ export function BottomInput() {
 
   return (
     <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[560px] max-w-[80%] z-10">
-      <div className="bg-card border border-border rounded-lg shadow-sm">
+      <div className="bg-white dark:bg-card border border-border rounded-lg shadow-md">
         <div className="relative">
           <Textarea
             value={input}

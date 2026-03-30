@@ -20,15 +20,15 @@ Coai is a canvas tool, not a chat app or a dashboard. The UI should feel like **
 
 ### Color palettes
 
-Built on OKLCH for perceptual uniformity. The palette is **warm neutral (sand/stone)** — all grays carry a subtle warm tint at hue 75 with low chroma (0.005–0.007). This avoids the clinical/cold feel of pure achromatic grays while staying tool-grade and professional. Intentional color is reserved for interactive state. Both modes are defined in `globals.css` — `:root` for light, `.dark` for dark.
+Built on OKLCH for perceptual uniformity. The palette is **warm neutral** — all grays carry a very subtle warm tint at hue 75 with minimal chroma (0.004–0.006). This keeps the palette clean and light (closer to Claude Code's feel) while avoiding the clinical coldness of pure achromatic grays. Intentional color is reserved for interactive state. Both modes are defined in `globals.css` — `:root` for light, `.dark` for dark.
 
 **Light mode (default):**
 
 | Token | Value | Role |
 |-------|-------|------|
-| `--background` | `oklch(0.985 0.016 75)` | Canvas and page background (warm cream, ~`#fff9f1`) |
-| `--card` | `oklch(0.98 0.014 75)` | Floating panels, node cards, sidebar (~`#fef7ee`) |
-| `--border` | `oklch(0.908 0.012 75)` | Borders — warm stone gray, structural (~`#e5e0d8`) |
+| `--background` | `oklch(0.985 0.005 75)` | Canvas and page background (light warm gray, ~`#fafaf8`) |
+| `--card` | `oklch(0.98 0.004 75)` | Floating panels, sidebar (~`#f8f8f6`) |
+| `--border` | `oklch(0.912 0.005 75)` | Borders — neutral gray, structural (~`#e6e5e3`) |
 
 **Dark mode:**
 

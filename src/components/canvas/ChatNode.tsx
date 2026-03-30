@@ -4,6 +4,7 @@ import { memo, useState, useRef, useEffect, useCallback } from "react";
 import { Handle, Position, type NodeProps, useEdges } from "@xyflow/react";
 import type { ChatFlowNode, CollaboratorState } from "@/types/canvas";
 import { useCanvasStore } from "@/lib/store/canvas-store";
+import { getColorForName } from "@/lib/yjs/awareness";
 import { useContext, createContext } from "react";
 
 /**
@@ -87,8 +88,11 @@ function OwnerAvatar({ name }: { name: string }) {
     .join("");
 
   return (
-    <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center shrink-0">
-      <span className="text-[9px] font-medium text-muted-foreground leading-none">
+    <div
+      className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+      style={{ backgroundColor: getColorForName(name) }}
+    >
+      <span className="text-[9px] font-semibold text-white leading-none">
         {initials || "?"}
       </span>
     </div>
@@ -145,7 +149,7 @@ function EditableTitle({
             setIsEditing(false);
           }
         }}
-        className={`nodrag bg-transparent border-b border-primary/40 outline-none ${className ?? ""}`}
+        className={`nodrag bg-transparent border-b border-white/30 outline-none ${className ?? ""}`}
       />
     );
   }
@@ -235,11 +239,12 @@ function ChatNodeComponent({ id, data }: NodeProps<ChatFlowNode>) {
 
   return (
     <div
-      className={`relative bg-card rounded-xl px-3 py-2.5 shadow-sm cursor-pointer min-w-[180px] max-w-[220px] hover:shadow-md transition-shadow ${
-        viewers.length > 0 ? "border-2" : "border"
+      className={`relative rounded-xl px-3 py-2.5 shadow-sm cursor-pointer min-w-[180px] max-w-[220px] hover:shadow-md transition-shadow ${
+        viewers.length > 0 ? "border-2" : "border border-white/10"
       }`}
       style={{
-        borderColor: viewers.length > 0 ? viewers[0].color : "var(--border)",
+        backgroundColor: "oklch(0.20 0.008 75)",
+        borderColor: viewers.length > 0 ? viewers[0].color : undefined,
       }}
       onClick={() => openSidebar(id)}
       onMouseEnter={onMouseEnter}
@@ -252,13 +257,13 @@ function ChatNodeComponent({ id, data }: NodeProps<ChatFlowNode>) {
         <EditableTitle
           nodeId={id}
           title={data.title}
-          className="text-sm font-medium truncate"
+          className="text-sm font-medium truncate text-white/90"
         />
       </div>
 
       {updatedAt && (
         <div className={`mt-1 ${data.createdByName ? "pl-7" : ""}`}>
-          <span className="font-mono text-[10px] text-muted-foreground">
+          <span className="font-mono text-[10px] text-white/40">
             {relativeTime(updatedAt)}
           </span>
         </div>

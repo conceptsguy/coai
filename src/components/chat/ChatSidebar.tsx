@@ -13,6 +13,7 @@ import { ModelSelector } from "@/components/chat/ModelSelector";
 import type { ConnectedContext } from "@/types/canvas";
 import { syncInsertMessage } from "@/lib/supabase/sync";
 import { cn } from "@/lib/utils";
+import { getColorForName } from "@/lib/yjs/awareness";
 
 function EditableSidebarTitle({ nodeId, title }: { nodeId: string; title: string }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -330,8 +331,12 @@ export function ChatSidebar() {
       )}>
         <div className="flex items-center gap-2 min-w-0 flex-1">
           {selectedNode.data.createdByName && (
-            <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center shrink-0" title={`Created by ${selectedNode.data.createdByName}`}>
-              <span className="text-[10px] font-medium text-muted-foreground leading-none">
+            <div
+              className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
+              style={{ backgroundColor: getColorForName(selectedNode.data.createdByName) }}
+              title={`Created by ${selectedNode.data.createdByName}`}
+            >
+              <span className="text-[10px] font-semibold text-white leading-none">
                 {selectedNode.data.createdByName
                   .split(/[\s._-]+/)
                   .slice(0, 2)

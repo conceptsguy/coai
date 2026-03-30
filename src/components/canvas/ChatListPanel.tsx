@@ -4,6 +4,7 @@ import { useCanvasStore } from "@/lib/store/canvas-store";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare } from "lucide-react";
+import { getColorForName } from "@/lib/yjs/awareness";
 
 export function ChatListPanel() {
   const nodes = useCanvasStore((s) => s.nodes);
@@ -12,7 +13,7 @@ export function ChatListPanel() {
   const openSidebar = useCanvasStore((s) => s.openSidebar);
 
   return (
-    <div className="w-[240px] border-r border-border bg-card flex flex-col shrink-0">
+    <div className="w-[240px] border-r border-border bg-sidebar flex flex-col shrink-0">
       {/* Header */}
       <div className="px-3 py-2 border-b border-border flex items-center justify-between">
         <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -47,6 +48,21 @@ export function ChatListPanel() {
                     : "hover:bg-muted/50"
                 }`}
               >
+                {node.data.createdByName && (
+                  <div
+                    className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+                    style={{ backgroundColor: getColorForName(node.data.createdByName) }}
+                    title={node.data.createdByName}
+                  >
+                    <span className="text-[9px] font-semibold text-white leading-none">
+                      {node.data.createdByName
+                        .split(/[\s._-]+/)
+                        .slice(0, 2)
+                        .map((s: string) => s[0]?.toUpperCase() ?? "")
+                        .join("")}
+                    </span>
+                  </div>
+                )}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm truncate">

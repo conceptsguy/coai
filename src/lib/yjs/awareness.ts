@@ -21,6 +21,18 @@ export function getCollaboratorColor(clientId: number): string {
 }
 
 /**
+ * Deterministic color from a display name string.
+ * Used for node cards and chat list avatars where we don't have a clientId.
+ */
+export function getColorForName(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return COLORS[Math.abs(hash) % COLORS.length];
+}
+
+/**
  * Hook that returns awareness states of all remote collaborators.
  */
 export function useCollaborators(
