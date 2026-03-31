@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
 import { useCanvasStore } from "@/lib/store/canvas-store";
 import { YjsProvider, useYjs } from "@/lib/yjs/provider";
@@ -10,15 +10,17 @@ import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { TopBar } from "@/components/canvas/TopBar";
 import { ChatListPanel } from "@/components/canvas/ChatListPanel";
 import { BottomInput } from "@/components/canvas/BottomInput";
+import { OnboardingModal } from "@/components/canvas/OnboardingModal";
 
 interface CanvasClientShellProps {
   projectId: string;
   userId: string;
   userEmail: string;
   role: "owner" | "editor";
+  isNew?: boolean;
 }
 
-function CanvasInner({ userId, userEmail, role, projectId }: { userId: string; userEmail: string; role: "owner" | "editor"; projectId: string }) {
+function CanvasInner({ userId, userEmail, role, projectId, isNew }: { userId: string; userEmail: string; role: "owner" | "editor"; projectId: string; isNew?: boolean }) {
   const { doc, awareness, synced, connected } = useYjs();
   const hydrated = useCanvasStore((s) => s.hydrated);
   const leftPanelOpen = useCanvasStore((s) => s.leftPanelOpen);
@@ -32,6 +34,22 @@ function CanvasInner({ userId, userEmail, role, projectId }: { userId: string; u
       useCanvasStore.getState().setYjsDoc(null);
     };
   }, [doc]);
+
+  // New canvas: close left panel and strip ?new=1 from URL
+  useEffect(() => {
+    if (isNew) {
+      useCanvasStore.setState({ leftPanelOpen: false });
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, [isNew]);
+
+  const createChatFromInput = useCanvasStore((s) => s.createChatFromInput);
+  const handleOnboardingComplete = useCallback(
+    (message: string) => {
+      createChatFromInput(message);
+    },
+    [createChatFromInput]
+  );
 
   if (!hydrated || !synced) {
     return (
@@ -57,14 +75,21 @@ function CanvasInner({ userId, userEmail, role, projectId }: { userId: string; u
           <ChatSidebar />
         </ReactFlowProvider>
       </div>
+      {isNew && (
+        <OnboardingModal
+          projectId={projectId}
+          isNew={isNew}
+          onComplete={handleOnboardingComplete}
+        />
+      )}
     </div>
   );
 }
 
-export function CanvasClientShell({ projectId, userId, userEmail, role }: CanvasClientShellProps) {
+export function CanvasClientShell({ projectId, userId, userEmail, role, isNew }: CanvasClientShellProps) {
   return (
     <YjsProvider projectId={projectId}>
-      <CanvasInner userId={userId} userEmail={userEmail} role={role} projectId={projectId} />
+      <CanvasInner userId={userId} userEmail={userEmail} role={role} projectId={projectId} isNew={isNew} />
     </YjsProvider>
   );
 }

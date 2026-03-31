@@ -13,15 +13,17 @@ async function createCanvas() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: project } = await supabase
-    .from("projects")
-    .insert({ owner_id: user.id })
-    .select("id")
-    .single();
+  // Use security-definer RPC to bypass RLS (auth.uid() is null with publishable keys)
+  const { data: projectId, error } = await supabase.rpc("create_project", {
+    p_owner_id: user.id,
+  });
 
-  if (project) {
-    redirect(`/canvas/${project.id}`);
+  if (error || !projectId) {
+    console.error("[createCanvas] insert failed:", error);
+    redirect("/?error=create_failed");
   }
+
+  redirect(`/canvas/${projectId}?new=1`);
 }
 
 export default async function Home() {

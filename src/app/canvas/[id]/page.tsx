@@ -4,10 +4,14 @@ import { CanvasClientShell } from "@/components/canvas/CanvasClientShell";
 
 export default async function CanvasPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ new?: string }>;
 }) {
   const { id: projectId } = await params;
+  const { new: isNewParam } = await searchParams;
+  const isNew = isNewParam === "1";
   const supabase = await createClient();
 
   const {
@@ -33,6 +37,7 @@ export default async function CanvasPage({
       userId={user.id}
       userEmail={user.email ?? ""}
       role={role}
+      isNew={isNew}
     />
   );
 }

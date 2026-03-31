@@ -146,6 +146,28 @@ async function suggestTitle(
   }
 }
 
+async function suggestProjectMeta(
+  messages: Array<{ role: string; content: string }>
+) {
+  const store = useCanvasStore.getState();
+  if (store.project.title !== "Untitled Project") return;
+
+  try {
+    const res = await fetch("/api/suggest-title", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages, includeDescription: true }),
+    });
+    if (res.ok) {
+      const { title, description } = await res.json();
+      if (title) store.updateProjectTitle(title);
+      if (description) store.updateProjectPurpose(description);
+    }
+  } catch {
+    // Best-effort
+  }
+}
+
 export function ChatSidebar() {
   const {
     nodes,
@@ -226,6 +248,7 @@ export function ChatSidebar() {
         const assistantCount = allMessages.filter((m) => m.role === "assistant").length;
         if (assistantCount === 1 && DEFAULT_TITLE_PATTERN.test(node.data.title)) {
           suggestTitle(selectedNodeId, simpleMsgs);
+          suggestProjectMeta(simpleMsgs);
         }
       }
     },
