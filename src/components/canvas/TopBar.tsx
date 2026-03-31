@@ -1,11 +1,28 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useCanvasStore } from "@/lib/store/canvas-store";
+import { syncDeleteProject } from "@/lib/supabase/sync";
 import { ThemeToggle } from "@/components/canvas/ThemeToggle";
 import { CollaboratorAvatars } from "@/components/canvas/CollaboratorAvatars";
 import { Button } from "@/components/ui/button";
-import { PanelLeft } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import { ArrowLeft, PanelLeft, EllipsisVertical, Trash2 } from "lucide-react";
 import { ShareDialog } from "@/components/canvas/ShareDialog";
 import type { CollaboratorState } from "@/types/canvas";
 
@@ -121,13 +138,31 @@ interface TopBarProps {
 }
 
 export function TopBar({ connected, collaborators, role, projectId }: TopBarProps) {
+  const router = useRouter();
   const toggleLeftPanel = useCanvasStore((s) => s.toggleLeftPanel);
   const leftPanelOpen = useCanvasStore((s) => s.leftPanelOpen);
+  const title = useCanvasStore((s) => s.project.title);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = useCallback(async () => {
+    setDeleting(true);
+    await syncDeleteProject(projectId);
+    router.push("/");
+  }, [projectId, router]);
 
   return (
     <div className="h-10 px-3 border-b border-border bg-card flex items-center justify-between shrink-0">
       {/* Left section */}
       <div className="flex items-center gap-2 min-w-0">
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          className="h-7 w-7 shrink-0"
+          onClick={() => router.push("/")}
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+        </Button>
         <Button
           variant="ghost"
           size="icon-xs"
@@ -153,8 +188,53 @@ export function TopBar({ connected, collaborators, role, projectId }: TopBarProp
           <CollaboratorAvatars collaborators={collaborators} />
         )}
         {role === "owner" && <ShareDialog projectId={projectId} />}
+        {role === "owner" && (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button variant="ghost" size="icon-xs" className="h-7 w-7" />
+              }
+            >
+              <EllipsisVertical className="h-3.5 w-3.5" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => setDeleteOpen(true)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete canvas
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         <ThemeToggle />
       </div>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Delete canvas</DialogTitle>
+            <DialogDescription>
+              This will permanently delete <strong>{title}</strong> and all its
+              chat nodes, messages, and connections. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>
+              Cancel
+            </DialogClose>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

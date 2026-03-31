@@ -127,3 +127,7 @@ export async function syncProjectPurpose(projectId: string, purpose: string) {
     .update({ purpose, updated_at: new Date().toISOString() })
     .eq("id", projectId);
 }
+
+export async function syncDeleteProject(projectId: string) {
+  await supabase.from("projects").delete().eq("id", projectId);
+}
