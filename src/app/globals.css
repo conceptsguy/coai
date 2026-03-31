@@ -46,6 +46,14 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  /* Landing page palette */
+  --color-landing-cream: #faf7f2;
+  --color-landing-ink: #1a1a18;
+  --color-landing-muted: #7a7a73;
+  --color-landing-border: #ebe7e1;
+  --color-landing-warm: #eae5dd;
+  --color-landing-sage: #7b9a6d;
+  --color-landing-forest: #1e3a2f;
 }
 
 :root {
@@ -127,6 +135,53 @@
   html {
     @apply font-sans;
   }
+}
+
+/* ── Landing page animations ─────────────────────────── */
+
+@keyframes landing-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes landing-scroll-dot {
+  0%, 100% {
+    opacity: 0.5;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(4px);
+  }
+}
+
+.landing-fade-up {
+  animation: landing-fade-up 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.landing-delay-1 {
+  opacity: 0;
+  animation-delay: 0.15s;
+}
+
+.landing-delay-2 {
+  opacity: 0;
+  animation-delay: 0.3s;
+}
+
+.landing-delay-3 {
+  opacity: 0;
+  animation-delay: 0.5s;
+}
+
+.landing-scroll-dot {
+  animation: landing-scroll-dot 2s ease-in-out infinite;
 }
 
 /* ReactFlow control button overrides */
