@@ -2,8 +2,11 @@ import * as Y from "yjs";
 import { v4 as uuid } from "uuid";
 import type {
   ChatFlowNode,
+  FileFlowNode,
+  CanvasNode,
   ConnectionEdge,
   ChatMessage,
+  FileNodeData,
   ModelConfig,
   ProjectMetadata,
 } from "@/types/canvas";
@@ -18,6 +21,9 @@ import {
 import {
   nodeToYMap,
   yMapToNode,
+  fileNodeToYMap,
+  yMapToFileNode,
+  getNodeType,
   edgeToYMap,
   yMapToEdge,
   messageToYMap,
@@ -58,6 +64,30 @@ export function yjsAddNode(
     getNodesMap(doc).set(id, nodeToYMap(node));
     // Initialize empty messages array for this node
     getNodeMessages(doc, id);
+  });
+
+  return id;
+}
+
+export function yjsAddFileNode(
+  doc: Y.Doc,
+  position: { x: number; y: number },
+  fileData: Omit<FileNodeData, "type">,
+  nodeId?: string
+): string {
+  const id = nodeId ?? uuid();
+  const node: FileFlowNode = {
+    id,
+    type: "file",
+    position,
+    data: {
+      type: "file" as const,
+      ...fileData,
+    } as FileNodeData,
+  };
+
+  doc.transact(() => {
+    getNodesMap(doc).set(id, fileNodeToYMap(node));
   });
 
   return id;
@@ -173,20 +203,24 @@ export function yjsUpdateProjectPurpose(doc: Y.Doc, purpose: string) {
 // Read side: observers that project Yjs → Zustand
 // ─────────────────────────────────────────────
 
-function buildNodesArray(doc: Y.Doc): ChatFlowNode[] {
+function buildNodesArray(doc: Y.Doc): CanvasNode[] {
   const nodesMap = getNodesMap(doc);
   const messagesMap = getMessagesMap(doc);
-  const nodes: ChatFlowNode[] = [];
+  const nodes: CanvasNode[] = [];
 
   nodesMap.forEach((nodeYMap, nodeId) => {
-    const msgArr = messagesMap.get(nodeId);
-    const messages: ChatMessage[] = [];
-    if (msgArr) {
-      for (let i = 0; i < msgArr.length; i++) {
-        messages.push(yMapToMessage(msgArr.get(i)));
+    if (getNodeType(nodeYMap) === "file") {
+      nodes.push(yMapToFileNode(nodeYMap));
+    } else {
+      const msgArr = messagesMap.get(nodeId);
+      const messages: ChatMessage[] = [];
+      if (msgArr) {
+        for (let i = 0; i < msgArr.length; i++) {
+          messages.push(yMapToMessage(msgArr.get(i)));
+        }
       }
+      nodes.push(yMapToNode(nodeYMap, messages));
     }
-    nodes.push(yMapToNode(nodeYMap, messages));
   });
 
   return nodes;
@@ -221,13 +255,14 @@ function syncToZustand(doc: Y.Doc) {
   // so the Yjs observer doesn't wipe in-progress streaming content.
   if (state._streamingNodeId) {
     const localNode = state.nodes.find((n) => n.id === state._streamingNodeId);
-    if (localNode) {
+    if (localNode && localNode.type === "chat") {
       const idx = nodes.findIndex((n) => n.id === state._streamingNodeId);
-      if (idx >= 0) {
+      const yjsNode = idx >= 0 ? nodes[idx] : null;
+      if (idx >= 0 && yjsNode && yjsNode.type === "chat") {
         nodes[idx] = {
-          ...nodes[idx],
+          ...yjsNode,
           data: {
-            ...nodes[idx].data,
+            ...yjsNode.data,
             messages: localNode.data.messages,
             lastMessagePreview: localNode.data.lastMessagePreview,
           },

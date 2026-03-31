@@ -13,14 +13,17 @@ import {
   type DefaultEdgeOptions,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { v4 as uuid } from "uuid";
 
 import { useCanvasStore } from "@/lib/store/canvas-store";
 import { ChatNode, CollaboratorsContext } from "@/components/canvas/ChatNode";
+import { FileNode } from "@/components/canvas/FileNode";
 import { CollaboratorCursors } from "@/components/canvas/CollaboratorCursors";
 import { AVAILABLE_MODELS } from "@/types/canvas";
 import type { CollaboratorState, ConnectionEdge } from "@/types/canvas";
 import { useYjs } from "@/lib/yjs/provider";
 import { yjsAddEdge } from "@/lib/yjs/bridge";
+import { syncInsertFileNode } from "@/lib/supabase/sync";
 import {
   useBroadcastCursor,
   setLocalAwareness,
@@ -29,6 +32,7 @@ import {
 
 const nodeTypes = {
   chat: ChatNode,
+  file: FileNode,
 };
 
 const defaultEdgeOptions: DefaultEdgeOptions = {
@@ -169,6 +173,100 @@ export function CanvasEditor({ collaborators, userId, userEmail }: CanvasEditorP
     closeSidebar();
   }, [closeSidebar]);
 
+  // ─── Drag-and-drop file upload ───
+
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  }, []);
+
+  const onDrop = useCallback(
+    async (event: React.DragEvent) => {
+      event.preventDefault();
+
+      const files = event.dataTransfer.files;
+      if (!files || files.length === 0) return;
+
+      const projectId = useCanvasStore.getState().projectId;
+      if (!projectId) return;
+
+      const position = screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const nodeId = uuid();
+        const yOffset = i * 80; // Space multiple files vertically
+
+        // Create file node immediately for responsiveness
+        const isText =
+          file.type.startsWith("text/") ||
+          file.type === "application/json" ||
+          file.type === "application/javascript" ||
+          file.type === "application/typescript" ||
+          file.type === "application/xml";
+
+        let contentPreview = "";
+        if (isText) {
+          const text = await file.text();
+          contentPreview = text.slice(0, 200);
+        }
+
+        const { _currentUserId, _currentUserName } = useCanvasStore.getState();
+
+        useCanvasStore.getState().addFileNode(
+          { x: position.x, y: position.y + yOffset },
+          {
+            title: file.name,
+            fileName: file.name,
+            fileType: file.type || "application/octet-stream",
+            fileSize: file.size,
+            storagePath: `${projectId}/${nodeId}/${file.name}`,
+            contentPreview,
+            createdAt: new Date().toISOString(),
+            createdBy: _currentUserId,
+            createdByName: _currentUserName,
+          },
+          nodeId
+        );
+
+        // Upload to server in background
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("projectId", projectId);
+        formData.append("nodeId", nodeId);
+
+        fetch("/api/files/upload", { method: "POST", body: formData }).then(
+          async (res) => {
+            if (!res.ok) {
+              console.error("File upload failed:", await res.text());
+            }
+          }
+        );
+
+        // Sync node to Supabase
+        syncInsertFileNode(
+          projectId,
+          nodeId,
+          file.name,
+          position.x,
+          position.y + yOffset,
+          {
+            fileName: file.name,
+            fileType: file.type || "application/octet-stream",
+            fileSize: file.size,
+            storagePath: `${projectId}/${nodeId}/${file.name}`,
+            contentText: isText ? await file.text() : null,
+            createdBy: _currentUserId || null,
+          }
+        );
+      }
+    },
+    [screenToFlowPosition]
+  );
+
   // Highlight the selected edge
   const styledEdges = useMemo(() => {
     if (!selectedEdgeId) return edges;
@@ -204,6 +302,8 @@ export function CanvasEditor({ collaborators, userId, userEmail }: CanvasEditorP
           onDoubleClick={onDoubleClick}
           onMouseMove={onMouseMove}
           onMouseLeave={onMouseLeave}
+          onDragOver={onDragOver}
+          onDrop={onDrop}
           nodeTypes={nodeTypes}
           defaultEdgeOptions={defaultEdgeOptions}
           fitView

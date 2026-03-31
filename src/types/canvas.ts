@@ -43,11 +43,38 @@ export interface ChatNodeData extends Record<string, unknown> {
 
 export type ChatFlowNode = Node<ChatNodeData, "chat">;
 
+// ─── File nodes ───
+
+export interface FileNodeData extends Record<string, unknown> {
+  type: "file";
+  title: string;
+  fileName: string;
+  /** MIME type (e.g. "text/markdown", "text/plain", "image/png") */
+  fileType: string;
+  /** File size in bytes */
+  fileSize: number;
+  /** Path in Supabase Storage bucket */
+  storagePath: string;
+  /** First ~200 chars of text content, for hover preview */
+  contentPreview: string;
+  createdAt: string;
+  createdBy: string;
+  createdByName: string;
+}
+
+export type FileFlowNode = Node<FileNodeData, "file">;
+
+/** Union of all canvas node types */
+export type CanvasNode = ChatFlowNode | FileFlowNode;
+
 /** Context summary sent to a chat from a connected source node */
 export interface ConnectedContext {
   sourceNodeId: string;
   sourceTitle: string;
+  sourceType: "chat" | "file";
   summary: string;
+  /** Full text content for file nodes (up to 8K chars) */
+  fileContent?: string;
 }
 
 export interface ConnectionEdgeData extends Record<string, unknown> {
@@ -57,7 +84,7 @@ export interface ConnectionEdgeData extends Record<string, unknown> {
 export type ConnectionEdge = Edge<ConnectionEdgeData>;
 
 /** Which view the sidebar is displaying */
-export type SidebarMode = "chat" | "source-detail";
+export type SidebarMode = "chat" | "source-detail" | "file-preview";
 
 /** Resolved detail about a context source edge, for display in the sidebar */
 export interface SourceDetail {

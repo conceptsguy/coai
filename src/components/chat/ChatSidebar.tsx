@@ -7,7 +7,7 @@ import { DefaultChatTransport } from "ai";
 import { v4 as uuid } from "uuid";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { X, ArrowUp, Maximize2, Minimize2, ChevronDown } from "lucide-react";
+import { X, ArrowUp, Maximize2, Minimize2, ChevronDown, FileText, MessageSquare, Download } from "lucide-react";
 import { SourceDetailPanel } from "@/components/chat/SourceDetailPanel";
 import { ModelSelector } from "@/components/chat/ModelSelector";
 import type { ConnectedContext } from "@/types/canvas";
@@ -69,6 +69,13 @@ function ConnectedContextFooter({ contexts }: { contexts: ConnectedContext[] }) 
 
   if (contexts.length === 0) return null;
 
+  const chatCount = contexts.filter((c) => c.sourceType === "chat").length;
+  const fileCount = contexts.filter((c) => c.sourceType === "file").length;
+
+  const parts: string[] = [];
+  if (chatCount > 0) parts.push(`${chatCount} chat${chatCount !== 1 ? "s" : ""}`);
+  if (fileCount > 0) parts.push(`${fileCount} file${fileCount !== 1 ? "s" : ""}`);
+
   return (
     <div className="px-3 pb-2">
       <button
@@ -76,18 +83,26 @@ function ConnectedContextFooter({ contexts }: { contexts: ConnectedContext[] }) 
         className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors w-full cursor-pointer"
       >
         <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
-        Informed by {contexts.length} source{contexts.length !== 1 ? "s" : ""}
+        Informed by {parts.join(" and ")}
         <ChevronDown className={cn("h-2.5 w-2.5 ml-auto transition-transform", expanded && "rotate-180")} />
       </button>
       {expanded && (
         <div className="mt-1 space-y-0.5 pl-3">
           {contexts.map((ctx) => (
-            <div key={ctx.sourceNodeId} className="text-[10px] text-muted-foreground truncate">
+            <div key={ctx.sourceNodeId} className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
+              {ctx.sourceType === "file" ? (
+                <FileText className="w-2.5 h-2.5 shrink-0 text-emerald-400/70" />
+              ) : (
+                <MessageSquare className="w-2.5 h-2.5 shrink-0 text-blue-400/70" />
+              )}
               &larr; {ctx.sourceTitle}
-              {ctx.summary
-                ? <span className="opacity-50"> &middot; summarized</span>
-                : <span className="opacity-50"> &middot; no summary yet</span>
-              }
+              {ctx.sourceType === "file" ? (
+                <span className="opacity-50"> &middot; file content</span>
+              ) : ctx.summary ? (
+                <span className="opacity-50"> &middot; summarized</span>
+              ) : (
+                <span className="opacity-50"> &middot; no summary yet</span>
+              )}
             </div>
           ))}
         </div>
@@ -168,6 +183,91 @@ async function suggestProjectMeta(
   }
 }
 
+function FilePreviewPanel() {
+  const {
+    nodes,
+    selectedNodeId,
+    sidebarExpanded,
+    closeSidebar,
+    toggleSidebarExpanded,
+  } = useCanvasStore();
+
+  const selectedNode = nodes.find((n) => n.id === selectedNodeId);
+  if (!selectedNode || selectedNode.type !== "file") return null;
+
+  const data = selectedNode.data;
+
+  return (
+    <div
+      className={cn(
+        "absolute bg-card flex flex-col z-20 border border-border shadow-lg",
+        sidebarExpanded
+          ? "inset-0"
+          : "right-3 top-3 bottom-3 w-[420px] rounded-xl"
+      )}
+    >
+      {/* Header */}
+      <div className={cn(
+        "px-3 py-2 border-b border-border flex items-center justify-between gap-2",
+        !sidebarExpanded && "rounded-t-xl"
+      )}>
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <FileText className="w-4 h-4 text-emerald-400/70 shrink-0" />
+          <div className="min-w-0">
+            <h2 className="font-semibold text-sm truncate">{data.title}</h2>
+            <p className="text-[10px] text-muted-foreground leading-tight">
+              {data.fileType} &middot; {formatFileSize(data.fileSize)}
+              {data.createdByName && ` &middot; by ${data.createdByName}`}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-0.5 shrink-0">
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={toggleSidebarExpanded}
+            className="h-7 w-7"
+          >
+            {sidebarExpanded
+              ? <Minimize2 className="h-3.5 w-3.5" />
+              : <Maximize2 className="h-3.5 w-3.5" />}
+          </Button>
+          <Button variant="ghost" size="icon-xs" onClick={closeSidebar} className="h-7 w-7 shrink-0">
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Content preview */}
+      <div className="flex-1 overflow-y-auto px-4 py-3">
+        <div className={cn(sidebarExpanded && "max-w-2xl mx-auto")}>
+          {data.contentPreview ? (
+            <pre className="text-sm text-foreground whitespace-pre-wrap font-mono leading-relaxed">
+              {data.contentPreview}
+            </pre>
+          ) : (
+            <div className="text-center py-12">
+              <FileText className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground">
+                Binary file — no text preview available
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {data.fileName}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export function ChatSidebar() {
   const {
     nodes,
@@ -192,20 +292,22 @@ export function ChatSidebar() {
     return getConnectedContexts(selectedNodeId);
   }, [selectedNodeId, edges, nodes]);
 
+  const chatNode = selectedNode?.type === "chat" ? selectedNode : null;
+
   const transport = useMemo(() => {
-    if (!selectedNode) return undefined;
+    if (!chatNode) return undefined;
     return new DefaultChatTransport({
       api: "/api/chat",
       body: {
-        provider: selectedNode.data.modelConfig.provider,
-        modelId: selectedNode.data.modelConfig.modelId,
+        provider: chatNode.data.modelConfig.provider,
+        modelId: chatNode.data.modelConfig.modelId,
         connectedContexts:
           connectedContexts.length > 0 ? connectedContexts : undefined,
       },
     });
   }, [
-    selectedNode?.data.modelConfig.provider,
-    selectedNode?.data.modelConfig.modelId,
+    chatNode?.data.modelConfig.provider,
+    chatNode?.data.modelConfig.modelId,
     connectedContexts,
   ]);
 
@@ -236,7 +338,7 @@ export function ChatSidebar() {
       syncInsertMessage(selectedNodeId, msgId, "assistant", text);
 
       const node = store.nodes.find((n) => n.id === selectedNodeId);
-      if (node) {
+      if (node && node.type === "chat") {
         const allMessages = [
           ...node.data.messages,
           { role: "assistant", content: text },
@@ -258,9 +360,9 @@ export function ChatSidebar() {
 
   // Sync node messages into useChat when switching nodes
   useEffect(() => {
-    if (selectedNode) {
+    if (chatNode) {
       setMessages(
-        selectedNode.data.messages
+        chatNode.data.messages
           .filter((m) => m.content && m.content.trim() !== "")
           .map((m) => ({
             id: m.id,
@@ -338,7 +440,10 @@ export function ChatSidebar() {
 
   if (!sidebarOpen) return null;
   if (sidebarMode === "source-detail") return <SourceDetailPanel />;
+  if (sidebarMode === "file-preview") return <FilePreviewPanel />;
   if (!selectedNode) return null;
+  // Only chat nodes proceed beyond here
+  if (selectedNode.type !== "chat") return null;
 
   return (
     <div

@@ -3,7 +3,7 @@
 import { useCanvasStore } from "@/lib/store/canvas-store";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, FileText } from "lucide-react";
 import { getColorForName } from "@/lib/yjs/awareness";
 
 export function ChatListPanel() {
@@ -11,6 +11,9 @@ export function ChatListPanel() {
   const selectedNodeId = useCanvasStore((s) => s.selectedNodeId);
   const sidebarOpen = useCanvasStore((s) => s.sidebarOpen);
   const openSidebar = useCanvasStore((s) => s.openSidebar);
+
+  const chatNodes = nodes.filter((n) => n.type === "chat");
+  const fileNodes = nodes.filter((n) => n.type === "file");
 
   return (
     <div className="w-[240px] border-r border-border bg-sidebar flex flex-col shrink-0">
@@ -20,19 +23,19 @@ export function ChatListPanel() {
           Chats
         </span>
         <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-          {nodes.length}
+          {chatNodes.length}
         </Badge>
       </div>
 
       {/* Chat list */}
       <ScrollArea className="flex-1">
         <div className="py-1">
-          {nodes.length === 0 && (
+          {chatNodes.length === 0 && fileNodes.length === 0 && (
             <p className="text-xs text-muted-foreground px-3 py-4 text-center">
               No chats yet. Double-click the canvas or type below to start one.
             </p>
           )}
-          {nodes.map((node) => {
+          {chatNodes.map((node) => {
             const isSelected = sidebarOpen && node.id === selectedNodeId;
             const messageCount = node.data.messages.filter(
               (m) => m.role !== "system"
@@ -87,6 +90,32 @@ export function ChatListPanel() {
               </button>
             );
           })}
+
+          {/* File nodes section */}
+          {fileNodes.length > 0 && (
+            <>
+              <div className="px-3 py-1.5 mt-1 border-t border-border">
+                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                  Files ({fileNodes.length})
+                </span>
+              </div>
+              {fileNodes.map((node) => {
+                const isSelected = sidebarOpen && node.id === selectedNodeId;
+                return (
+                  <button
+                    key={node.id}
+                    onClick={() => openSidebar(node.id)}
+                    className={`w-full text-left px-3 py-1.5 flex items-center gap-2 cursor-pointer transition-colors ${
+                      isSelected ? "bg-muted" : "hover:bg-muted/50"
+                    }`}
+                  >
+                    <FileText className="w-4 h-4 text-emerald-400/70 shrink-0" />
+                    <span className="text-sm truncate">{node.data.title}</span>
+                  </button>
+                );
+              })}
+            </>
+          )}
         </div>
       </ScrollArea>
     </div>

@@ -1,9 +1,12 @@
 import * as Y from "yjs";
 import type {
   ChatFlowNode,
+  FileFlowNode,
+  CanvasNode,
   ConnectionEdge,
   ChatMessage,
   ChatNodeData,
+  FileNodeData,
   ModelConfig,
   ConnectionEdgeData,
 } from "@/types/canvas";
@@ -14,6 +17,7 @@ import { MarkerType } from "@xyflow/react";
 export function nodeToYMap(node: ChatFlowNode): Y.Map<unknown> {
   const m = new Y.Map<unknown>();
   m.set("id", node.id);
+  m.set("nodeType", "chat");
   m.set("positionX", node.position.x);
   m.set("positionY", node.position.y);
   m.set("title", node.data.title);
@@ -119,4 +123,52 @@ export function yMapToMessage(m: Y.Map<unknown>): ChatMessage {
     content: (m.get("content") as string) ?? "",
     createdAt: (m.get("createdAt") as string) ?? "",
   };
+}
+
+// ─── File node conversions ───
+
+export function fileNodeToYMap(node: FileFlowNode): Y.Map<unknown> {
+  const m = new Y.Map<unknown>();
+  m.set("id", node.id);
+  m.set("nodeType", "file");
+  m.set("positionX", node.position.x);
+  m.set("positionY", node.position.y);
+  m.set("title", node.data.title);
+  m.set("fileName", node.data.fileName);
+  m.set("fileType", node.data.fileType);
+  m.set("fileSize", node.data.fileSize);
+  m.set("storagePath", node.data.storagePath);
+  m.set("contentPreview", node.data.contentPreview);
+  m.set("createdAt", node.data.createdAt);
+  m.set("createdBy", node.data.createdBy);
+  m.set("createdByName", node.data.createdByName);
+  return m;
+}
+
+export function yMapToFileNode(m: Y.Map<unknown>): FileFlowNode {
+  return {
+    id: m.get("id") as string,
+    type: "file",
+    position: {
+      x: m.get("positionX") as number,
+      y: m.get("positionY") as number,
+    },
+    data: {
+      type: "file",
+      title: (m.get("title") as string) ?? "Untitled File",
+      fileName: (m.get("fileName") as string) ?? "",
+      fileType: (m.get("fileType") as string) ?? "application/octet-stream",
+      fileSize: (m.get("fileSize") as number) ?? 0,
+      storagePath: (m.get("storagePath") as string) ?? "",
+      contentPreview: (m.get("contentPreview") as string) ?? "",
+      createdAt: (m.get("createdAt") as string) ?? "",
+      createdBy: (m.get("createdBy") as string) ?? "",
+      createdByName: (m.get("createdByName") as string) ?? "",
+    } satisfies FileNodeData,
+  };
+}
+
+/** Read the nodeType discriminator from a Yjs map. Defaults to "chat" for backwards compat. */
+export function getNodeType(m: Y.Map<unknown>): "chat" | "file" {
+  return (m.get("nodeType") as string) === "file" ? "file" : "chat";
 }

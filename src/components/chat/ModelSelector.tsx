@@ -18,13 +18,15 @@ interface ModelSelectorProps {
 export function ModelSelector({ nodeId }: ModelSelectorProps) {
   const { nodes } = useCanvasStore();
   const node = nodes.find((n) => n.id === nodeId);
-  if (!node) return null;
+  if (!node || node.type !== "chat") return null;
 
   const setModel = (model: ModelConfig) => {
     useCanvasStore.setState((state) => ({
       nodes: state.nodes.map((n) =>
-        n.id === nodeId ? { ...n, data: { ...n.data, modelConfig: model } } : n
-      ),
+        n.id === nodeId && n.type === "chat"
+          ? { ...n, data: { ...n.data, modelConfig: model } }
+          : n
+      ) as typeof state.nodes,
     }));
   };
 

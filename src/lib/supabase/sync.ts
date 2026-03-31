@@ -131,3 +131,64 @@ export async function syncProjectPurpose(projectId: string, purpose: string) {
 export async function syncDeleteProject(projectId: string) {
   await supabase.from("projects").delete().eq("id", projectId);
 }
+
+// ─── File node sync ───
+
+export async function syncInsertFileNode(
+  projectId: string,
+  nodeId: string,
+  title: string,
+  x: number,
+  y: number,
+  file: {
+    fileName: string;
+    fileType: string;
+    fileSize: number;
+    storagePath: string;
+    contentText: string | null;
+    createdBy: string | null;
+  }
+) {
+  // Insert node row
+  await supabase.from("nodes").insert({
+    id: nodeId,
+    project_id: projectId,
+    title,
+    node_type: "file",
+    model_provider: "none",
+    model_id: "none",
+    model_label: "File",
+    position_x: x,
+    position_y: y,
+  });
+
+  // Insert file metadata row
+  await supabase.from("files").insert({
+    node_id: nodeId,
+    project_id: projectId,
+    storage_path: file.storagePath,
+    file_name: file.fileName,
+    file_type: file.fileType,
+    file_size: file.fileSize,
+    content_text: file.contentText,
+    created_by: file.createdBy,
+  });
+}
+
+export async function syncDeleteFileNode(nodeId: string, storagePath: string) {
+  // Delete file from storage
+  await supabase.storage.from("project-files").remove([storagePath]);
+  // Delete file metadata (cascade from node delete handles edges/messages)
+  await supabase.from("files").delete().eq("node_id", nodeId);
+  await supabase.from("nodes").delete().eq("id", nodeId);
+}
+
+/** Fetch the full content_text for a file node (for context injection) */
+export async function fetchFileContent(nodeId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from("files")
+    .select("content_text")
+    .eq("node_id", nodeId)
+    .single();
+  return data?.content_text ?? null;
+}

@@ -2,6 +2,9 @@ import { create } from "zustand";
 import {
   AVAILABLE_MODELS,
   type ChatFlowNode,
+  type FileFlowNode,
+  type CanvasNode,
+  type FileNodeData,
   type ConnectionEdge,
   type ModelConfig,
   type ChatMessage,
@@ -19,6 +22,7 @@ import {
 import * as Y from "yjs";
 import {
   yjsAddNode,
+  yjsAddFileNode,
   yjsRemoveNode,
   yjsUpdateNodePosition,
   yjsUpdateNodeTitle,
@@ -33,7 +37,7 @@ import {
 
 interface CanvasState {
   // ── Synced state (projected from Yjs observers) ──
-  nodes: ChatFlowNode[];
+  nodes: CanvasNode[];
   edges: ConnectionEdge[];
   project: ProjectMetadata;
   projectId: string | null;
@@ -63,6 +67,7 @@ interface CanvasState {
 
   // ── Node actions (write to Yjs) ──
   addChatNode: (position: { x: number; y: number }, modelConfig: ModelConfig) => string;
+  addFileNode: (position: { x: number; y: number }, fileData: Omit<FileNodeData, "type">, nodeId?: string) => string;
   removeNode: (nodeId: string) => void;
   toggleNodeCollapsed: (nodeId: string) => void;
   selectNode: (nodeId: string | null) => void;
@@ -84,7 +89,7 @@ interface CanvasState {
   getIncomingSourceCount: (nodeId: string) => number;
 
   // ── React Flow callbacks ──
-  onNodesChange: (changes: NodeChange<ChatFlowNode>[]) => void;
+  onNodesChange: (changes: NodeChange<CanvasNode>[]) => void;
   onEdgesChange: (changes: EdgeChange<ConnectionEdge>[]) => void;
 
   // ── Project metadata ──
@@ -162,6 +167,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     });
   },
 
+  addFileNode: (position, fileData, nodeId) => {
+    const { _yjsDoc: doc } = get();
+    if (!doc) return "";
+    return yjsAddFileNode(doc, position, fileData, nodeId);
+  },
+
   removeNode: (nodeId) => {
     const doc = get()._yjsDoc;
     if (doc) yjsRemoveNode(doc, nodeId);
@@ -176,10 +187,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   toggleNodeCollapsed: (nodeId) => {
-    // This is a minor UI preference — keep local for now
+    // This is a minor UI preference — keep local for now (chat nodes only)
     set((state) => ({
       nodes: state.nodes.map((n) =>
-        n.id === nodeId
+        n.id === nodeId && n.type === "chat"
           ? { ...n, data: { ...n.data, isCollapsed: !n.data.isCollapsed } }
           : n
       ),
@@ -206,10 +217,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   updateLastAssistantMessage: (nodeId, content) => {
-    // Local-only: streaming chunks stay in Zustand, not Yjs
+    // Local-only: streaming chunks stay in Zustand, not Yjs (chat nodes only)
     set((state) => ({
       nodes: state.nodes.map((n) => {
-        if (n.id !== nodeId) return n;
+        if (n.id !== nodeId || n.type !== "chat") return n;
         const messages = [...n.data.messages];
         const lastIdx = messages.length - 1;
         if (lastIdx >= 0 && messages[lastIdx].role === "assistant") {
@@ -243,10 +254,24 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
     for (const edge of incomingEdges) {
       const sourceNode = nodes.find((n) => n.id === edge.source);
-      if (sourceNode && sourceNode.data.summary) {
+      if (!sourceNode) continue;
+
+      if (sourceNode.type === "file") {
+        // File nodes provide their content preview as context
+        if (sourceNode.data.contentPreview) {
+          contexts.push({
+            sourceNodeId: sourceNode.id,
+            sourceTitle: sourceNode.data.title,
+            sourceType: "file",
+            summary: sourceNode.data.contentPreview,
+            fileContent: sourceNode.data.contentPreview,
+          });
+        }
+      } else if (sourceNode.data.summary) {
         contexts.push({
           sourceNodeId: sourceNode.id,
           sourceTitle: sourceNode.data.title,
+          sourceType: "chat",
           summary: sourceNode.data.summary,
         });
       }
@@ -262,7 +287,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   onNodesChange: (changes) => {
     // Apply changes locally for immediate UI feedback (drag, select, etc.)
     set((state) => ({
-      nodes: applyNodeChanges(changes, state.nodes) as ChatFlowNode[],
+      nodes: applyNodeChanges(changes, state.nodes) as CanvasNode[],
     }));
 
     // Sync position changes to Yjs (debounced, on drag end)
@@ -321,7 +346,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   openSidebar: (nodeId) => {
-    set({ selectedNodeId: nodeId, selectedEdgeId: null, sidebarMode: "chat" as SidebarMode, sidebarOpen: true });
+    const node = get().nodes.find((n) => n.id === nodeId);
+    const mode: SidebarMode = node?.type === "file" ? "file-preview" : "chat";
+    set({ selectedNodeId: nodeId, selectedEdgeId: null, sidebarMode: mode, sidebarOpen: true });
   },
 
   closeSidebar: () => {
@@ -354,8 +381,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       sourceTitle: sourceNode.data.title,
       targetNodeId: targetNode.id,
       targetTitle: targetNode.data.title,
-      summary: sourceNode.data.summary || "",
-      summaryMessageCount: sourceNode.data.summaryMessageCount,
+      summary: sourceNode.type === "chat" ? (sourceNode.data.summary || "") : (sourceNode.data.contentPreview || ""),
+      summaryMessageCount: sourceNode.type === "chat" ? sourceNode.data.summaryMessageCount : 0,
     };
   },
 

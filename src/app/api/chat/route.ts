@@ -47,20 +47,22 @@ export async function POST(req: Request) {
   let systemPrompt: string | undefined;
   if (connectedContexts && connectedContexts.length > 0) {
     const contextBlocks = connectedContexts
-      .map(
-        (ctx) =>
-          `## Connected Chat: "${ctx.sourceTitle}"\n${ctx.summary}`
-      )
+      .map((ctx) => {
+        if (ctx.sourceType === "file") {
+          return `## Connected File: "${ctx.sourceTitle}"\nFile content:\n${ctx.fileContent ?? ctx.summary}`;
+        }
+        return `## Connected Chat: "${ctx.sourceTitle}"\n${ctx.summary}`;
+      })
       .join("\n\n---\n\n");
 
-    systemPrompt = `You are participating in a collaborative AI canvas where multiple chat threads exist and can be connected to share context.
+    systemPrompt = `You are participating in a collaborative AI canvas where multiple chat threads and files exist and can be connected to share context.
 
-The following are summaries from chat threads that have been connected to this conversation. Use this context to inform your responses — reference relevant points, build on ideas, and be aware of what has been discussed elsewhere. If the user's question relates to something covered in a connected chat, weave that context into your answer naturally.
+The following are summaries from chat threads and contents from files that have been connected to this conversation. Use this context to inform your responses — reference relevant points, build on ideas, and be aware of what has been discussed or documented elsewhere. If the user's question relates to something covered in a connected source, weave that context into your answer naturally.
 
 ${contextBlocks}
 
 ---
-Use this connected context to provide more informed, contextually aware responses. You don't need to mention the connected chats explicitly unless it's relevant to do so.`;
+Use this connected context to provide more informed, contextually aware responses. You don't need to mention the connected sources explicitly unless it's relevant to do so.`;
   }
 
   const model = getModel(provider, modelId);
