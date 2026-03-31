@@ -260,11 +260,13 @@ export function ChatSidebar() {
   useEffect(() => {
     if (selectedNode) {
       setMessages(
-        selectedNode.data.messages.map((m) => ({
-          id: m.id,
-          role: m.role,
-          parts: [{ type: "text" as const, text: m.content }],
-        }))
+        selectedNode.data.messages
+          .filter((m) => m.content && m.content.trim() !== "")
+          .map((m) => ({
+            id: m.id,
+            role: m.role,
+            parts: [{ type: "text" as const, text: m.content }],
+          }))
       );
     }
   }, [selectedNodeId]);

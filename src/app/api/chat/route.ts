@@ -31,15 +31,17 @@ export async function POST(req: Request) {
     );
   }
 
-  // Convert UIMessage parts format to simple content strings
-  const convertedMessages = messages.map((msg) => ({
-    role: msg.role,
-    content:
-      msg.parts
-        ?.filter((p) => p.type === "text" && p.text)
-        .map((p) => p.text!)
-        .join("") ?? "",
-  }));
+  // Convert UIMessage parts format to simple content strings, filtering out empty messages
+  const convertedMessages = messages
+    .map((msg) => ({
+      role: msg.role,
+      content:
+        msg.parts
+          ?.filter((p) => p.type === "text" && p.text)
+          .map((p) => p.text!)
+          .join("") ?? "",
+    }))
+    .filter((msg) => msg.content.trim() !== "");
 
   // Build system prompt with connected context
   let systemPrompt: string | undefined;
