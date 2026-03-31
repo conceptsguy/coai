@@ -38,7 +38,7 @@ export function BentoParallax() {
         style={{ transform: `translateY(-${offset}%)`, height: "140%" }}
       >
         <Image
-          src="/landing/bento-models.jpg"
+          src="/landing/bento-topaz.jpg"
           alt="Topaz crystal formation"
           fill
           className="object-cover"

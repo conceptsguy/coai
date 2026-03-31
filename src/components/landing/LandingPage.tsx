@@ -164,7 +164,7 @@ export function LandingPage() {
             {/* ── Card 3: Multiplayer ── */}
             <div className="md:col-span-3 rounded-[1.5rem] overflow-hidden relative group hover:shadow-xl hover:shadow-landing-ink/[0.06] transition-all duration-500 min-h-[280px]">
               <Image
-                src="/landing/bento-multiplayer.jpg"
+                src="/landing/bento-collab.jpg"
                 alt="Team working together indoors"
                 fill
                 className="object-cover transition-transform duration-700 group-hover:scale-105"
