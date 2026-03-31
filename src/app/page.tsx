@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
-import { LogoMark } from "@/components/brand/LogoMark";
 import { LandingPage } from "@/components/landing/LandingPage";
 
 async function createCanvas() {
@@ -53,72 +53,151 @@ export default async function Home() {
     .filter(Boolean) ?? [];
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen gap-8 p-8">
-      <div className="flex flex-col items-center gap-4">
-        <LogoMark size={64} className="text-foreground" />
-        <h1 className="text-5xl tracking-tight" style={{ fontFamily: "var(--font-logo)" }}>Coai</h1>
-        <p className="text-base text-muted-foreground">
-          Welcome back, {user.email}
-        </p>
-      </div>
+    <div className="min-h-screen bg-landing-cream">
+      {/* Top bar */}
+      <header className="flex items-center justify-between px-8 md:px-12 py-6">
+        <span
+          className="text-lg font-semibold tracking-[-0.01em] text-landing-ink"
+          style={{ fontFamily: "var(--font-poppins)" }}
+        >
+          CoAI
+        </span>
+        <form action="/auth/signout" method="post">
+          <Button
+            type="submit"
+            variant="ghost"
+            size="sm"
+            className="text-landing-muted hover:text-landing-ink"
+            style={{ fontFamily: "var(--font-poppins)" }}
+          >
+            Sign out
+          </Button>
+        </form>
+      </header>
 
-      <form action={createCanvas}>
-        <Button type="submit" size="lg" className="text-base px-8">
-          New Canvas
-        </Button>
-      </form>
-
-      {projects && projects.length > 0 && (
-        <div className="w-full max-w-md space-y-2">
-          <h2 className="text-sm font-medium text-muted-foreground">
+      {/* Main content — two column layout */}
+      <div className="flex flex-col md:flex-row gap-8 px-8 md:px-12 pb-12" style={{ minHeight: "calc(100vh - 80px)" }}>
+        {/* Left column — project list */}
+        <div className="flex-1 max-w-lg pt-4 md:pt-8">
+          <p
+            className="text-sm text-landing-muted mb-1"
+            style={{ fontFamily: "var(--font-poppins)" }}
+          >
+            Welcome back, {user.email}
+          </p>
+          <h1
+            className="text-3xl md:text-4xl font-semibold tracking-[-0.025em] text-landing-ink mb-8"
+            style={{ fontFamily: "var(--font-poppins)" }}
+          >
             Your canvases
-          </h2>
-          <div className="space-y-1">
-            {projects.map((p) => (
-              <Link
-                key={p.id}
-                href={`/canvas/${p.id}`}
-                className="block rounded-lg border border-border px-4 py-3 hover:bg-muted transition-colors"
-              >
-                <div className="font-medium text-sm">{p.title}</div>
-                <div className="text-xs text-muted-foreground">
-                  {new Date(p.updated_at).toLocaleDateString()}
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
+          </h1>
 
-      {sharedProjects.length > 0 && (
-        <div className="w-full max-w-md space-y-2">
-          <h2 className="text-sm font-medium text-muted-foreground">
-            Shared with you
-          </h2>
-          <div className="space-y-1">
-            {sharedProjects.map((p) => (
-              <Link
-                key={p.id}
-                href={`/canvas/${p.id}`}
-                className="block rounded-lg border border-border px-4 py-3 hover:bg-muted transition-colors"
-              >
-                <div className="font-medium text-sm">{p.title}</div>
-                <div className="text-xs text-muted-foreground flex gap-2">
-                  <span>{p.owner?.display_name ?? "Unknown"}</span>
-                  <span>&middot;</span>
-                  <span>{new Date(p.updated_at).toLocaleDateString()}</span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
+          <form action={createCanvas} className="mb-8">
+            <Button
+              type="submit"
+              size="lg"
+              className="text-sm px-8 bg-landing-ink text-white hover:bg-landing-ink/90 rounded-full"
+              style={{ fontFamily: "var(--font-poppins)" }}
+            >
+              New Canvas
+            </Button>
+          </form>
 
-      <form action="/auth/signout" method="post">
-        <Button type="submit" variant="ghost" size="sm">
-          Sign out
-        </Button>
-      </form>
+          {projects && projects.length > 0 && (
+            <div className="space-y-1.5 mb-8">
+              {projects.map((p) => (
+                <Link
+                  key={p.id}
+                  href={`/canvas/${p.id}`}
+                  className="block rounded-xl border border-landing-border px-4 py-3.5 hover:bg-landing-warm/50 transition-colors"
+                >
+                  <div
+                    className="font-medium text-sm text-landing-ink"
+                    style={{ fontFamily: "var(--font-poppins)" }}
+                  >
+                    {p.title}
+                  </div>
+                  <div
+                    className="text-xs text-landing-muted mt-0.5"
+                    style={{ fontFamily: "var(--font-poppins)" }}
+                  >
+                    {new Date(p.updated_at).toLocaleDateString()}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+
+          {sharedProjects.length > 0 && (
+            <div className="space-y-1.5">
+              <h2
+                className="text-xs font-semibold tracking-[0.1em] uppercase text-landing-muted mb-3"
+                style={{ fontFamily: "var(--font-poppins)" }}
+              >
+                Shared with you
+              </h2>
+              {sharedProjects.map((p) => (
+                <Link
+                  key={p.id}
+                  href={`/canvas/${p.id}`}
+                  className="block rounded-xl border border-landing-border px-4 py-3.5 hover:bg-landing-warm/50 transition-colors"
+                >
+                  <div
+                    className="font-medium text-sm text-landing-ink"
+                    style={{ fontFamily: "var(--font-poppins)" }}
+                  >
+                    {p.title}
+                  </div>
+                  <div
+                    className="text-xs text-landing-muted mt-0.5 flex gap-2"
+                    style={{ fontFamily: "var(--font-poppins)" }}
+                  >
+                    <span>{p.owner?.display_name ?? "Unknown"}</span>
+                    <span>&middot;</span>
+                    <span>{new Date(p.updated_at).toLocaleDateString()}</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Right column — portrait image */}
+        <div className="hidden md:flex flex-1 max-w-xl flex-col">
+          <div className="relative flex-1 rounded-[2rem] overflow-hidden min-h-[500px]">
+            <Image
+              src="/San Francisco.jpg"
+              alt="San Francisco cityscape in black and white"
+              fill
+              className="object-cover"
+              priority
+            />
+          </div>
+          <p
+            className="text-[11px] text-landing-muted mt-3 text-center leading-relaxed"
+            style={{ fontFamily: "var(--font-poppins)" }}
+          >
+            Photo by{" "}
+            <a
+              href="https://unsplash.com/@francistogram?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText"
+              className="underline hover:text-landing-ink transition-colors"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Francisco Delgado
+            </a>{" "}
+            on{" "}
+            <a
+              href="https://unsplash.com/photos/black-and-white-city-under-white-sky-mDHMoOuDe34?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText"
+              className="underline hover:text-landing-ink transition-colors"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Unsplash
+            </a>
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

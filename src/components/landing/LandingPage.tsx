@@ -4,6 +4,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { LogoMark } from "@/components/brand/LogoMark";
+import { BentoDotGrid } from "./BentoDotGrid";
+import { BentoParallax } from "./BentoParallax";
 
 export function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
@@ -25,20 +27,10 @@ export function LandingPage() {
         }`}
       >
         <div className="max-w-7xl mx-auto flex items-center justify-between px-6 md:px-10">
-          <div className="flex items-center gap-2.5">
-            <LogoMark
-              size={24}
-              className={`transition-colors duration-500 ${scrolled ? "text-landing-ink" : "text-white"}`}
-            />
-            <span
-              className={`text-lg font-semibold tracking-[-0.01em] transition-colors duration-500 ${
-                scrolled ? "text-landing-ink" : "text-white"
-              }`}
-              style={{ fontFamily: "var(--font-poppins)" }}
-            >
-              CoAI
-            </span>
-          </div>
+          <LogoMark
+            size={24}
+            className={`transition-colors duration-500 ${scrolled ? "text-landing-ink" : "text-white"}`}
+          />
           <div className="flex items-center gap-4">
             <Link
               href="/login"
@@ -68,7 +60,7 @@ export function LandingPage() {
       {/* ── Hero ────────────────────────────────────────── */}
       <section className="relative h-screen overflow-hidden">
         <Image
-          src="/california.png"
+          src="/california.jpg"
           alt="Friends collaborating with laptops in a sunny California backyard"
           fill
           className="object-cover"
@@ -140,29 +132,8 @@ export function LandingPage() {
 
           {/* Bento grid — photo-background cards */}
           <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-            {/* ── Card 1: Shared Canvas (wide) ── */}
-            <div className="md:col-span-4 rounded-[1.5rem] overflow-hidden relative group hover:shadow-xl hover:shadow-landing-ink/[0.06] transition-all duration-500 min-h-[380px]">
-              <Image
-                src="/landing/bento-canvas.jpg"
-                alt="Abstract artistic workspace"
-                fill
-                className="object-cover transition-transform duration-700 group-hover:scale-105"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10" />
-              <div className="relative z-10 h-full flex flex-col justify-end p-8 md:p-10">
-                <h3
-                  className="text-xl md:text-2xl font-semibold text-white mb-2.5 tracking-[-0.01em]"
-                  style={{ fontFamily: "var(--font-poppins)" }}
-                >
-                  A canvas, not a chatbox
-                </h3>
-                <p className="text-white/60 text-sm leading-relaxed max-w-sm">
-                  Place conversations anywhere on an infinite canvas. The spatial
-                  layout becomes your team&apos;s map of thinking — see what
-                  everyone&apos;s exploring at a glance.
-                </p>
-              </div>
-            </div>
+            {/* ── Card 1: Shared Canvas (wide) — interactive dot grid ── */}
+            <BentoDotGrid />
 
             {/* ── Card 2: Connected Context ── */}
             <div className="md:col-span-2 rounded-[1.5rem] overflow-hidden relative group hover:shadow-xl transition-all duration-500 min-h-[380px]">
@@ -171,6 +142,7 @@ export function LandingPage() {
                 alt="Connected nature patterns"
                 fill
                 className="object-cover transition-transform duration-700 group-hover:scale-105"
+                sizes="(max-width: 768px) 100vw, 33vw"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/40 to-black/15" />
               <div className="relative z-10 h-full flex flex-col justify-end p-8">
@@ -193,9 +165,10 @@ export function LandingPage() {
             <div className="md:col-span-3 rounded-[1.5rem] overflow-hidden relative group hover:shadow-xl hover:shadow-landing-ink/[0.06] transition-all duration-500 min-h-[280px]">
               <Image
                 src="/landing/bento-multiplayer.jpg"
-                alt="Team collaborating together"
+                alt="Team working together indoors"
                 fill
                 className="object-cover transition-transform duration-700 group-hover:scale-105"
+                sizes="(max-width: 768px) 100vw, 50vw"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/35 to-black/10" />
               <div className="relative z-10 h-full flex flex-col justify-end p-8">
@@ -212,39 +185,8 @@ export function LandingPage() {
               </div>
             </div>
 
-            {/* ── Card 4: Multiple Models ── */}
-            <div className="md:col-span-3 rounded-[1.5rem] overflow-hidden relative group hover:shadow-xl hover:shadow-landing-ink/[0.06] transition-all duration-500 min-h-[280px]">
-              <Image
-                src="/landing/bento-models.jpg"
-                alt="Abstract technology landscape"
-                fill
-                className="object-cover transition-transform duration-700 group-hover:scale-105"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/35 to-black/10" />
-              <div className="relative z-10 h-full flex flex-col justify-end p-8">
-                <h3
-                  className="text-xl md:text-2xl font-semibold text-white mb-2.5 tracking-[-0.01em]"
-                  style={{ fontFamily: "var(--font-poppins)" }}
-                >
-                  Every model, one canvas
-                </h3>
-                <p className="text-white/55 text-sm leading-relaxed max-w-sm">
-                  Claude for creativity, GPT-4o for analysis, Haiku for quick
-                  tasks. Each node picks its own model.
-                </p>
-                {/* Model badges */}
-                <div className="flex gap-2 mt-4 flex-wrap">
-                  {["Claude", "GPT-4o", "Haiku"].map((model) => (
-                    <span
-                      key={model}
-                      className="px-3 py-1 rounded-full bg-white/15 backdrop-blur-sm text-white/80 text-xs font-medium border border-white/10"
-                    >
-                      {model}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
+            {/* ── Card 4: Multiple Models — parallax topaz ── */}
+            <BentoParallax />
           </div>
         </div>
       </section>
@@ -295,15 +237,7 @@ export function LandingPage() {
       {/* ── Footer ──────────────────────────────────────── */}
       <footer className="bg-landing-ink border-t border-white/[0.05] py-8 px-6 md:px-10">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <LogoMark size={18} className="text-white/25" />
-            <span
-              className="text-white/25 text-sm font-medium"
-              style={{ fontFamily: "var(--font-poppins)" }}
-            >
-              CoAI
-            </span>
-          </div>
+          <LogoMark size={18} className="text-white/25" />
           <p className="text-white/30 text-xs flex items-center gap-1.5">
             <span>&copy; {new Date().getFullYear()} Convo</span>
             <span className="text-white/15">&middot;</span>
