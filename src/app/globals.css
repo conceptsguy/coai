@@ -125,6 +125,14 @@
   --sidebar-ring: oklch(0.556 0.01 75);
 }
 
+/* Node cards — always light to pop against canvas background */
+:root, .dark {
+  --node-bg: oklch(0.98 0.004 75);
+  --node-border: oklch(0.88 0.005 75);
+  --node-fg: oklch(0.16 0.006 75);
+  --node-muted: oklch(0.556 0.006 75);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

@@ -183,6 +183,13 @@ export async function syncDeleteFileNode(nodeId: string, storagePath: string) {
   await supabase.from("nodes").delete().eq("id", nodeId);
 }
 
+export async function syncUpdateFileContent(nodeId: string, contentText: string) {
+  await supabase
+    .from("files")
+    .update({ content_text: contentText })
+    .eq("node_id", nodeId);
+}
+
 /** Fetch the full content_text for a file node (for context injection) */
 export async function fetchFileContent(nodeId: string): Promise<string | null> {
   const { data } = await supabase

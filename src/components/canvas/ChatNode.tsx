@@ -2,6 +2,7 @@
 
 import { memo, useState, useRef, useEffect, useCallback } from "react";
 import { Handle, Position, type NodeProps, useEdges } from "@xyflow/react";
+import { MessageSquare } from "lucide-react";
 import type { ChatFlowNode, CollaboratorState } from "@/types/canvas";
 import { useCanvasStore } from "@/lib/store/canvas-store";
 import { getColorForName } from "@/lib/yjs/awareness";
@@ -105,10 +106,12 @@ function EditableTitle({
   nodeId,
   title,
   className,
+  color,
 }: {
   nodeId: string;
   title: string;
   className?: string;
+  color?: string;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(title);
@@ -149,7 +152,8 @@ function EditableTitle({
             setIsEditing(false);
           }
         }}
-        className={`nodrag bg-transparent border-b border-white/30 outline-none ${className ?? ""}`}
+        className={`nodrag bg-transparent border-b border-[var(--node-fg)]/30 outline-none ${className ?? ""}`}
+        style={color ? { color } : undefined}
       />
     );
   }
@@ -157,6 +161,7 @@ function EditableTitle({
   return (
     <span
       className={`cursor-text ${className ?? ""}`}
+      style={color ? { color } : undefined}
       onClick={(e) => {
         e.stopPropagation();
         setIsEditing(true);
@@ -240,11 +245,11 @@ function ChatNodeComponent({ id, data }: NodeProps<ChatFlowNode>) {
   return (
     <div
       className={`relative rounded-xl px-3 py-2.5 shadow-sm cursor-pointer min-w-[180px] max-w-[220px] hover:shadow-md transition-shadow ${
-        viewers.length > 0 ? "border-2" : "border border-white/10"
+        viewers.length > 0 ? "border-2" : "border"
       }`}
       style={{
-        backgroundColor: "oklch(0.20 0.008 75)",
-        borderColor: viewers.length > 0 ? viewers[0].color : undefined,
+        backgroundColor: "var(--node-bg)",
+        borderColor: viewers.length > 0 ? viewers[0].color : "var(--node-border)",
       }}
       onClick={() => openSidebar(id)}
       onMouseEnter={onMouseEnter}
@@ -252,22 +257,46 @@ function ChatNodeComponent({ id, data }: NodeProps<ChatFlowNode>) {
     >
       <NodeHandles incomingCount={incomingCount} outgoingCount={outgoingCount} />
 
-      <div className="flex items-center gap-2">
-        {data.createdByName && <OwnerAvatar name={data.createdByName} />}
-        <EditableTitle
-          nodeId={id}
-          title={data.title}
-          className="text-sm font-medium truncate text-white/90"
-        />
+      {/* Type badge */}
+      <div className="flex items-center justify-between gap-1 mb-1.5">
+        <div className="flex items-center gap-2 min-w-0">
+          {data.createdByName && <OwnerAvatar name={data.createdByName} />}
+          <MessageSquare className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--node-muted)" }} />
+        </div>
+        <span
+          className="text-[9px] font-medium px-1.5 py-0.5 rounded-full border shrink-0"
+          style={{
+            color: "var(--node-muted)",
+            borderColor: "var(--node-border)",
+          }}
+        >
+          Chat
+        </span>
       </div>
 
-      {updatedAt && (
-        <div className={`mt-1 ${data.createdByName ? "pl-7" : ""}`}>
-          <span className="font-mono text-[10px] text-white/40">
-            {relativeTime(updatedAt)}
+      <EditableTitle
+        nodeId={id}
+        title={data.title}
+        className="text-sm font-semibold truncate block"
+        color="var(--node-fg)"
+      />
+
+      {/* Subtitle: model + timestamp */}
+      <div className="mt-1 flex items-center gap-1.5">
+        <span className="text-[10px] font-mono" style={{ color: "var(--node-muted)" }}>
+          {data.modelConfig.label}
+        </span>
+        {messageCount > 0 && (
+          <span className="text-[10px]" style={{ color: "var(--node-muted)" }}>
+            · {messageCount} msg{messageCount !== 1 ? "s" : ""}
           </span>
-        </div>
-      )}
+        )}
+        {updatedAt && (
+          <span className="text-[10px] font-mono" style={{ color: "var(--node-muted)" }}>
+            · {relativeTime(updatedAt)}
+          </span>
+        )}
+      </div>
 
       {hovered && messageCount > 0 && <HoverPreview data={data} />}
     </div>

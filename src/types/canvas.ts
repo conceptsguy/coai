@@ -79,6 +79,7 @@ export interface ConnectedContext {
 
 export interface ConnectionEdgeData extends Record<string, unknown> {
   direction: "one_way";
+  label?: string;
 }
 
 export type ConnectionEdge = Edge<ConnectionEdgeData>;

@@ -77,6 +77,11 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function getFileExtension(fileName: string): string {
+  const ext = fileName.split(".").pop()?.toUpperCase();
+  return ext && ext.length <= 5 ? ext : "";
+}
+
 function OwnerAvatar({ name }: { name: string }) {
   const initials = name
     .split(/[\s._-]+/)
@@ -131,6 +136,7 @@ function FileNodeComponent({ id, data }: NodeProps<FileFlowNode>) {
   const viewers = collaborators.filter((c) => c.selectedNodeId === id);
 
   const Icon = getFileIcon(data.fileType);
+  const ext = getFileExtension(data.fileName);
 
   const onMouseEnter = useCallback(() => {
     hoverTimeout.current = setTimeout(() => setHovered(true), 400);
@@ -144,11 +150,11 @@ function FileNodeComponent({ id, data }: NodeProps<FileFlowNode>) {
   return (
     <div
       className={`relative rounded-xl px-3 py-2.5 shadow-sm cursor-pointer min-w-[160px] max-w-[200px] hover:shadow-md transition-shadow ${
-        viewers.length > 0 ? "border-2" : "border border-white/10"
+        viewers.length > 0 ? "border-2" : "border"
       }`}
       style={{
-        backgroundColor: "oklch(0.20 0.012 160)",
-        borderColor: viewers.length > 0 ? viewers[0].color : undefined,
+        backgroundColor: "var(--node-bg)",
+        borderColor: viewers.length > 0 ? viewers[0].color : "var(--node-border)",
       }}
       onClick={() => openSidebar(id)}
       onMouseEnter={onMouseEnter}
@@ -156,16 +162,34 @@ function FileNodeComponent({ id, data }: NodeProps<FileFlowNode>) {
     >
       <NodeHandles incomingCount={incomingCount} outgoingCount={outgoingCount} />
 
-      <div className="flex items-center gap-2">
-        {data.createdByName && <OwnerAvatar name={data.createdByName} />}
-        <Icon className="w-4 h-4 text-emerald-400/70 shrink-0" />
-        <span className="text-sm font-medium truncate text-white/90">
-          {data.title}
-        </span>
+      {/* Type badge */}
+      <div className="flex items-center justify-between gap-1 mb-1.5">
+        <div className="flex items-center gap-2 min-w-0">
+          {data.createdByName && <OwnerAvatar name={data.createdByName} />}
+          <Icon className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+        </div>
+        {ext && (
+          <span
+            className="text-[9px] font-medium px-1.5 py-0.5 rounded-full border shrink-0"
+            style={{
+              color: "var(--node-muted)",
+              borderColor: "var(--node-border)",
+            }}
+          >
+            {ext}
+          </span>
+        )}
       </div>
 
-      <div className={`mt-1 flex items-center gap-2 ${data.createdByName ? "pl-7" : ""}`}>
-        <span className="font-mono text-[10px] text-white/40">
+      <span
+        className="text-sm font-semibold truncate block"
+        style={{ color: "var(--node-fg)" }}
+      >
+        {data.title}
+      </span>
+
+      <div className="mt-1">
+        <span className="text-[10px] font-mono" style={{ color: "var(--node-muted)" }}>
           {formatFileSize(data.fileSize)}
         </span>
       </div>

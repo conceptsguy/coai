@@ -33,7 +33,15 @@ import {
   yjsRemoveEdge,
   yjsUpdateProjectTitle,
   yjsUpdateProjectPurpose,
+  yjsUpdateFileContentPreview,
+  yjsUpdateEdgeLabel,
 } from "@/lib/yjs/bridge";
+import {
+  syncDeleteNode,
+  syncDeleteFileNode,
+  syncDeleteEdge,
+  syncInsertEdge,
+} from "@/lib/supabase/sync";
 
 interface CanvasState {
   // ── Synced state (projected from Yjs observers) ──
@@ -102,8 +110,12 @@ interface CanvasState {
   closeSidebar: () => void;
   toggleSidebarExpanded: () => void;
 
+  // ── File content ──
+  updateFileContentPreview: (nodeId: string, preview: string) => void;
+
   // ── Edge selection ──
   selectEdge: (edgeId: string) => void;
+  updateEdgeLabel: (edgeId: string, label: string) => void;
   getSourceDetail: (edgeId: string) => SourceDetail | null;
   removeEdge: (edgeId: string) => void;
 
@@ -174,8 +186,23 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   removeNode: (nodeId) => {
-    const doc = get()._yjsDoc;
+    const { _yjsDoc: doc, nodes, edges } = get();
+
+    // Look up the node before deleting to determine type + storage path
+    const node = nodes.find((n) => n.id === nodeId);
+
     if (doc) yjsRemoveNode(doc, nodeId);
+
+    // Sync deletion to Supabase
+    if (node?.type === "file") {
+      syncDeleteFileNode(nodeId, node.data.storagePath);
+    } else {
+      syncDeleteNode(nodeId);
+    }
+
+    // Delete connected edges from Supabase
+    const connectedEdges = edges.filter((e) => e.source === nodeId || e.target === nodeId);
+    connectedEdges.forEach((e) => syncDeleteEdge(e.id));
 
     // Also update local-only state
     set((state) => ({
@@ -245,6 +272,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   updateNodeSummary: (nodeId, summary) => {
     const doc = get()._yjsDoc;
     if (doc) yjsUpdateNodeSummary(doc, nodeId, summary);
+  },
+
+  updateFileContentPreview: (nodeId, preview) => {
+    const doc = get()._yjsDoc;
+    if (doc) yjsUpdateFileContentPreview(doc, nodeId, preview);
   },
 
   getConnectedContexts: (nodeId) => {
@@ -317,6 +349,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     for (const change of changes) {
       if (change.type === "remove") {
         yjsRemoveEdge(doc, change.id);
+        syncDeleteEdge(change.id);
       }
     }
   },
@@ -389,11 +422,17 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   removeEdge: (edgeId) => {
     const doc = get()._yjsDoc;
     if (doc) yjsRemoveEdge(doc, edgeId);
+    syncDeleteEdge(edgeId);
     set((state) => ({
       selectedEdgeId: state.selectedEdgeId === edgeId ? null : state.selectedEdgeId,
       sidebarOpen: state.selectedEdgeId === edgeId ? false : state.sidebarOpen,
       sidebarMode: state.selectedEdgeId === edgeId ? "chat" as SidebarMode : state.sidebarMode,
     }));
+  },
+
+  updateEdgeLabel: (edgeId, label) => {
+    const doc = get()._yjsDoc;
+    if (doc) yjsUpdateEdgeLabel(doc, edgeId, label);
   },
 
   toggleLeftPanel: () => {

@@ -23,7 +23,7 @@ import { AVAILABLE_MODELS } from "@/types/canvas";
 import type { CollaboratorState, ConnectionEdge } from "@/types/canvas";
 import { useYjs } from "@/lib/yjs/provider";
 import { yjsAddEdge } from "@/lib/yjs/bridge";
-import { syncInsertFileNode } from "@/lib/supabase/sync";
+import { syncInsertFileNode, syncInsertEdge } from "@/lib/supabase/sync";
 import {
   useBroadcastCursor,
   setLocalAwareness,
@@ -37,12 +37,12 @@ const nodeTypes = {
 
 const defaultEdgeOptions: DefaultEdgeOptions = {
   animated: false,
-  style: { stroke: "#3b82f6", strokeWidth: 2 },
+  style: { stroke: "#9ca3af", strokeWidth: 1.5 },
   markerEnd: {
     type: MarkerType.ArrowClosed,
-    color: "#3b82f6",
-    width: 16,
-    height: 16,
+    color: "#9ca3af",
+    width: 12,
+    height: 12,
   },
 };
 
@@ -123,15 +123,28 @@ export function CanvasEditor({ collaborators, userId, userEmail }: CanvasEditorP
         target: connection.target!,
         targetHandle: connection.targetHandle,
         animated: false,
-        style: { stroke: "#3b82f6", strokeWidth: 2 },
+        style: { stroke: "#9ca3af", strokeWidth: 1.5 },
         markerEnd: {
           type: MarkerType.ArrowClosed,
-          color: "#3b82f6",
-          width: 16,
-          height: 16,
+          color: "#9ca3af",
+          width: 12,
+          height: 12,
         },
         data: { direction: "one_way" as const },
       });
+
+      // Sync edge to Supabase for persistence
+      const projectId = useCanvasStore.getState().projectId;
+      if (projectId) {
+        syncInsertEdge(
+          projectId,
+          edgeId,
+          connection.source!,
+          connection.target!,
+          connection.sourceHandle ?? null,
+          connection.targetHandle ?? null
+        );
+      }
     },
     [isValidConnection, doc]
   );
@@ -267,25 +280,44 @@ export function CanvasEditor({ collaborators, userId, userEmail }: CanvasEditorP
     [screenToFlowPosition]
   );
 
-  // Highlight the selected edge
+  // Compute edge labels from source node type + highlight selected edge
   const styledEdges = useMemo(() => {
-    if (!selectedEdgeId) return edges;
     return edges.map((edge) => {
+      let styled = { ...edge };
+
+      // Compute label from source node type if no custom label set
+      if (!edge.label && !edge.data?.label) {
+        const sourceNode = nodes.find((n) => n.id === edge.source);
+        if (sourceNode) {
+          const typeLabel = sourceNode.type === "file" ? "File" : "Chat";
+          styled = {
+            ...styled,
+            label: typeLabel,
+            labelStyle: { fontSize: 10, fill: "#9ca3af", fontFamily: "var(--font-mono)" },
+            labelBgStyle: { fill: "var(--node-bg)", stroke: "var(--node-border)", strokeWidth: 0.5 },
+            labelBgPadding: [4, 6] as [number, number],
+            labelBgBorderRadius: 4,
+          };
+        }
+      }
+
+      // Highlight selected edge
       if (edge.id === selectedEdgeId) {
-        return {
-          ...edge,
-          style: { stroke: "#3b82f6", strokeWidth: 3 },
+        styled = {
+          ...styled,
+          style: { stroke: "#6b7280", strokeWidth: 2.5 },
           markerEnd: {
             type: MarkerType.ArrowClosed,
-            color: "#3b82f6",
-            width: 20,
-            height: 20,
+            color: "#6b7280",
+            width: 16,
+            height: 16,
           },
         };
       }
-      return edge;
+
+      return styled;
     });
-  }, [edges, selectedEdgeId]);
+  }, [edges, selectedEdgeId, nodes]);
 
   return (
     <div className="w-full h-full">

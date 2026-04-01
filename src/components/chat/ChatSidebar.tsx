@@ -11,7 +11,7 @@ import { X, ArrowUp, Maximize2, Minimize2, ChevronDown, FileText, MessageSquare,
 import { SourceDetailPanel } from "@/components/chat/SourceDetailPanel";
 import { ModelSelector } from "@/components/chat/ModelSelector";
 import type { ConnectedContext } from "@/types/canvas";
-import { syncInsertMessage } from "@/lib/supabase/sync";
+import { syncInsertMessage, fetchFileContent, syncUpdateFileContent } from "@/lib/supabase/sync";
 import { cn } from "@/lib/utils";
 import { getColorForName } from "@/lib/yjs/awareness";
 
@@ -190,12 +190,52 @@ function FilePreviewPanel() {
     sidebarExpanded,
     closeSidebar,
     toggleSidebarExpanded,
+    updateFileContentPreview,
   } = useCanvasStore();
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
-  if (!selectedNode || selectedNode.type !== "file") return null;
+  const data = selectedNode?.type === "file" ? selectedNode.data : null;
+  const nodeId = selectedNode?.id ?? "";
 
-  const data = selectedNode.data;
+  // Determine if this is an editable text file
+  const isTextFile = data ? (
+    data.fileType.startsWith("text/") ||
+    data.fileType === "application/json" ||
+    data.fileType === "application/javascript" ||
+    data.fileType === "application/typescript" ||
+    data.fileType === "application/xml"
+  ) : false;
+
+  const [fullContent, setFullContent] = useState<string | null>(null);
+  const [loadingContent, setLoadingContent] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Fetch full content when opening a text file
+  useEffect(() => {
+    if (!nodeId || !isTextFile) {
+      setFullContent(null);
+      return;
+    }
+    setLoadingContent(true);
+    fetchFileContent(nodeId).then((content) => {
+      setFullContent(content ?? data?.contentPreview ?? "");
+      setLoadingContent(false);
+    });
+  }, [nodeId, isTextFile, data?.contentPreview]);
+
+  const handleContentChange = useCallback((value: string) => {
+    setFullContent(value);
+
+    // Debounce save to Supabase
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      syncUpdateFileContent(nodeId, value);
+      // Update the contentPreview (first 200 chars) on Yjs
+      updateFileContentPreview(nodeId, value.slice(0, 200));
+    }, 1000);
+  }, [nodeId, updateFileContentPreview]);
+
+  if (!selectedNode || selectedNode.type !== "file" || !data) return null;
 
   return (
     <div
@@ -212,7 +252,7 @@ function FilePreviewPanel() {
         !sidebarExpanded && "rounded-t-xl"
       )}>
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <FileText className="w-4 h-4 text-emerald-400/70 shrink-0" />
+          <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
           <div className="min-w-0">
             <h2 className="font-semibold text-sm truncate">{data.title}</h2>
             <p className="text-[10px] text-muted-foreground leading-tight">
@@ -238,10 +278,23 @@ function FilePreviewPanel() {
         </div>
       </div>
 
-      {/* Content preview */}
+      {/* Content — editable for text files, read-only for binary */}
       <div className="flex-1 overflow-y-auto px-4 py-3">
-        <div className={cn(sidebarExpanded && "max-w-2xl mx-auto")}>
-          {data.contentPreview ? (
+        <div className={cn(sidebarExpanded && "max-w-2xl mx-auto", "h-full")}>
+          {isTextFile ? (
+            loadingContent ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : (
+              <textarea
+                value={fullContent ?? ""}
+                onChange={(e) => handleContentChange(e.target.value)}
+                className="w-full h-full min-h-[300px] bg-transparent text-sm text-foreground whitespace-pre-wrap font-mono leading-relaxed resize-none outline-none"
+                placeholder="File content..."
+              />
+            )
+          ) : data.contentPreview ? (
             <pre className="text-sm text-foreground whitespace-pre-wrap font-mono leading-relaxed">
               {data.contentPreview}
             </pre>

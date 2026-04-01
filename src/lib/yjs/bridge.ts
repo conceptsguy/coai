@@ -199,6 +199,20 @@ export function yjsUpdateProjectPurpose(doc: Y.Doc, purpose: string) {
   getProjectMap(doc).set("purpose", purpose);
 }
 
+export function yjsUpdateFileContentPreview(doc: Y.Doc, nodeId: string, preview: string) {
+  const nodeMap = getNodesMap(doc).get(nodeId) as Y.Map<unknown> | undefined;
+  if (nodeMap) {
+    nodeMap.set("contentPreview", preview);
+  }
+}
+
+export function yjsUpdateEdgeLabel(doc: Y.Doc, edgeId: string, label: string) {
+  const edgeMap = getEdgesMap(doc).get(edgeId) as Y.Map<unknown> | undefined;
+  if (edgeMap) {
+    edgeMap.set("label", label);
+  }
+}
+
 // ─────────────────────────────────────────────
 // Read side: observers that project Yjs → Zustand
 // ─────────────────────────────────────────────

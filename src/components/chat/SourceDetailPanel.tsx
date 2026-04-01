@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useCanvasStore } from "@/lib/store/canvas-store";
 import { Button } from "@/components/ui/button";
 import { X, Maximize2, Minimize2, ArrowRight } from "lucide-react";
@@ -14,9 +15,28 @@ export function SourceDetailPanel() {
     getSourceDetail,
     openSidebar,
     removeEdge,
+    updateEdgeLabel,
+    edges,
   } = useCanvasStore();
 
   const detail = selectedEdgeId ? getSourceDetail(selectedEdgeId) : null;
+
+  // Edge label editing
+  const currentEdge = edges.find((e) => e.id === selectedEdgeId);
+  const [labelValue, setLabelValue] = useState(currentEdge?.data?.label ?? "");
+  const labelTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setLabelValue(currentEdge?.data?.label ?? "");
+  }, [currentEdge?.data?.label]);
+
+  const handleLabelChange = useCallback((value: string) => {
+    setLabelValue(value);
+    if (labelTimerRef.current) clearTimeout(labelTimerRef.current);
+    labelTimerRef.current = setTimeout(() => {
+      if (selectedEdgeId) updateEdgeLabel(selectedEdgeId, value);
+    }, 500);
+  }, [selectedEdgeId, updateEdgeLabel]);
 
   if (!detail) {
     return (
@@ -101,6 +121,20 @@ export function SourceDetailPanel() {
                 <ArrowRight className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
               </button>
             </div>
+          </div>
+
+          <div className="border-t border-border" />
+
+          {/* Edge label */}
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Edge label</p>
+            <input
+              type="text"
+              value={labelValue}
+              onChange={(e) => handleLabelChange(e.target.value)}
+              placeholder="e.g. File, Context, Reference..."
+              className="w-full text-sm bg-muted rounded-lg px-3 py-1.5 border border-transparent focus:border-border outline-none transition-colors font-mono"
+            />
           </div>
 
           <div className="border-t border-border" />

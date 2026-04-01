@@ -73,12 +73,12 @@ export function yMapToNode(
 
 // ─── Edge conversions ───
 
-const EDGE_STYLE = { stroke: "#3b82f6", strokeWidth: 2 };
+const EDGE_STYLE = { stroke: "#9ca3af", strokeWidth: 1.5 };
 const EDGE_MARKER = {
   type: MarkerType.ArrowClosed,
-  color: "#3b82f6",
-  width: 16,
-  height: 16,
+  color: "#9ca3af",
+  width: 12,
+  height: 12,
 };
 
 export function edgeToYMap(edge: ConnectionEdge): Y.Map<unknown> {
@@ -88,10 +88,12 @@ export function edgeToYMap(edge: ConnectionEdge): Y.Map<unknown> {
   m.set("sourceHandle", edge.sourceHandle ?? null);
   m.set("target", edge.target);
   m.set("targetHandle", edge.targetHandle ?? null);
+  m.set("label", edge.data?.label ?? "");
   return m;
 }
 
 export function yMapToEdge(m: Y.Map<unknown>): ConnectionEdge {
+  const label = (m.get("label") as string) || "";
   return {
     id: m.get("id") as string,
     source: m.get("source") as string,
@@ -101,7 +103,12 @@ export function yMapToEdge(m: Y.Map<unknown>): ConnectionEdge {
     animated: false,
     style: EDGE_STYLE,
     markerEnd: EDGE_MARKER,
-    data: { direction: "one_way" } satisfies ConnectionEdgeData,
+    label: label || undefined,
+    labelStyle: label ? { fontSize: 10, fill: "#9ca3af", fontFamily: "var(--font-mono)" } : undefined,
+    labelBgStyle: label ? { fill: "var(--node-bg)", stroke: "var(--node-border)", strokeWidth: 0.5 } : undefined,
+    labelBgPadding: label ? [4, 6] as [number, number] : undefined,
+    labelBgBorderRadius: label ? 4 : undefined,
+    data: { direction: "one_way", label } satisfies ConnectionEdgeData,
   };
 }
 
