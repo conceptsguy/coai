@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { LandingPage } from "@/components/landing/LandingPage";
+import { ImageCard } from "@/components/dashboard/ImageCard";
 
 async function createCanvas() {
   "use server";
@@ -164,41 +164,8 @@ export default async function Home() {
           )}
         </div>
 
-        {/* Right column — portrait image */}
-        <div className="hidden md:flex flex-1 max-w-xl flex-col">
-          <div className="relative flex-1 rounded-[2rem] overflow-hidden min-h-[500px]">
-            <Image
-              src="/San Francisco.jpg"
-              alt="San Francisco cityscape in black and white"
-              fill
-              className="object-cover"
-              priority
-            />
-          </div>
-          <p
-            className="text-[11px] text-landing-muted mt-3 text-center leading-relaxed"
-            style={{ fontFamily: "var(--font-poppins)" }}
-          >
-            Photo by{" "}
-            <a
-              href="https://unsplash.com/@francistogram?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText"
-              className="underline hover:text-landing-ink transition-colors"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Francisco Delgado
-            </a>{" "}
-            on{" "}
-            <a
-              href="https://unsplash.com/photos/black-and-white-city-under-white-sky-mDHMoOuDe34?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText"
-              className="underline hover:text-landing-ink transition-colors"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Unsplash
-            </a>
-          </p>
-        </div>
+        {/* Right column — flipping image card */}
+        <ImageCard />
       </div>
     </div>
   );
