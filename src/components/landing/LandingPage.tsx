@@ -1,14 +1,19 @@
 "use client";
 
-import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { LogoMark } from "@/components/brand/LogoMark";
 import { BentoDotGrid } from "./BentoDotGrid";
 import { BentoParallax } from "./BentoParallax";
 
+const SURVEY_URL = "https://convosurvey.ai/i/4fb7cbc0-a7c0-4e7b-b27c-60d75f1b848f";
+
 export function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
+  const [surveyOpen, setSurveyOpen] = useState(false);
+
+  const openSurvey = useCallback(() => setSurveyOpen(true), []);
+  const closeSurvey = useCallback(() => setSurveyOpen(false), []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 60);
@@ -32,18 +37,8 @@ export function LandingPage() {
             className={`transition-colors duration-500 ${scrolled ? "text-landing-ink" : "text-white"}`}
           />
           <div className="flex items-center gap-4">
-            <Link
-              href="/login"
-              className={`text-sm font-medium transition-colors duration-300 ${
-                scrolled
-                  ? "text-landing-muted hover:text-landing-ink"
-                  : "text-white/70 hover:text-white"
-              }`}
-            >
-              Sign in
-            </Link>
-            <Link
-              href="/signup"
+            <button
+              onClick={openSurvey}
               className={`px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
                 scrolled
                   ? "bg-landing-ink text-white hover:bg-landing-ink/90"
@@ -51,8 +46,8 @@ export function LandingPage() {
               }`}
               style={{ fontFamily: "var(--font-poppins)" }}
             >
-              Get started
-            </Link>
+              Request access
+            </button>
           </div>
         </div>
       </nav>
@@ -86,13 +81,13 @@ export function LandingPage() {
             and make your whole team smarter.
           </p>
           <div className="mt-8 flex flex-wrap gap-3 landing-fade-up landing-delay-2">
-            <Link
-              href="/signup"
+            <button
+              onClick={openSurvey}
               className="bg-white text-landing-ink px-7 py-3 rounded-full text-sm font-semibold transition-all hover:shadow-lg hover:shadow-white/20 hover:scale-[1.02] active:scale-[0.98]"
               style={{ fontFamily: "var(--font-poppins)" }}
             >
-              Start collaborating
-            </Link>
+              Request access
+            </button>
             <a
               href="#how"
               className="border border-white/20 text-white/90 px-7 py-3 rounded-full text-sm font-medium transition-all hover:bg-white/10 hover:border-white/30"
@@ -224,13 +219,13 @@ export function LandingPage() {
             Free to start. Built for teams who believe the best ideas come from
             collaboration — even with AI.
           </p>
-          <Link
-            href="/signup"
+          <button
+            onClick={openSurvey}
             className="inline-flex bg-white text-landing-ink px-9 py-3.5 rounded-full text-sm font-semibold transition-all hover:shadow-lg hover:shadow-white/10 hover:scale-[1.02] active:scale-[0.98]"
             style={{ fontFamily: "var(--font-poppins)" }}
           >
-            Get started free
-          </Link>
+            Request access
+          </button>
         </div>
       </section>
 
@@ -253,6 +248,34 @@ export function LandingPage() {
           </p>
         </div>
       </footer>
+      {/* ── Survey Modal ───────────────────────────────── */}
+      {surveyOpen && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={closeSurvey}
+        >
+          <div
+            className="relative w-full max-w-lg mx-4 bg-white rounded-2xl shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={closeSurvey}
+              className="absolute top-3 right-3 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-black/5 hover:bg-black/10 transition-colors text-landing-ink/60 hover:text-landing-ink"
+              aria-label="Close"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </button>
+            <iframe
+              src={SURVEY_URL}
+              className="w-full h-[70vh] border-0"
+              title="CoAI Interest Survey"
+              allow="clipboard-write"
+            />
+          </div>
+        </div>
+      )}
     </main>
   );
 }
