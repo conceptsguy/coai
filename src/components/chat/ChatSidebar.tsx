@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { X, ArrowUp, Maximize2, Minimize2, ChevronDown, FileText, MessageSquare, Download } from "lucide-react";
 import { SourceDetailPanel } from "@/components/chat/SourceDetailPanel";
 import { ModelSelector } from "@/components/chat/ModelSelector";
-import type { ConnectedContext } from "@/types/canvas";
+import type { ConnectedContext, ContextUpdate, SharedContextDoc } from "@/types/canvas";
 import { syncInsertMessage, fetchFileContent, syncUpdateFileContent } from "@/lib/supabase/sync";
 import { cn } from "@/lib/utils";
 import { getColorForName } from "@/lib/yjs/awareness";
@@ -183,6 +183,40 @@ async function suggestProjectMeta(
   }
 }
 
+/**
+ * After a completed exchange, ask the AI if anything warrants a shared context update.
+ * Uses /api/context/propose which calls Haiku to analyze the exchange.
+ * Best-effort — does not block chat.
+ */
+async function maybeAnalyzeForContextUpdate(
+  nodeId: string,
+  projectId: string,
+  lastUserMessage: string,
+  lastAssistantMessage: string
+) {
+  const store = useCanvasStore.getState();
+  if (!store.sharedContext) return; // Only propose when workspace mode is active
+
+  // Build a compact exchange summary for the analyze endpoint
+  const exchangeText = `User: ${lastUserMessage.slice(0, 500)}\n\nAssistant: ${lastAssistantMessage.slice(0, 500)}`;
+
+  try {
+    const res = await fetch("/api/context/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId, nodeId, exchangeText }),
+    });
+    if (res.ok) {
+      const data = await res.json() as { update?: ContextUpdate };
+      if (data.update) {
+        store.addContextUpdateProposal(data.update);
+      }
+    }
+  } catch {
+    // Best-effort
+  }
+}
+
 function FilePreviewPanel() {
   const {
     nodes,
@@ -334,9 +368,15 @@ export function ChatSidebar() {
     getConnectedContexts,
     _pendingFirstMessage,
     setPendingFirstMessage,
+    projectId,
+    sharedContext,
+    pendingContextUpdates,
+    removeContextUpdateProposal,
+    updateSharedContextSection,
   } = useCanvasStore();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
+  const [contextPanelOpen, setContextPanelOpen] = useState(false);
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
 
@@ -356,13 +396,18 @@ export function ChatSidebar() {
         modelId: chatNode.data.modelConfig.modelId,
         connectedContexts:
           connectedContexts.length > 0 ? connectedContexts : undefined,
+        sharedContext: sharedContext ?? undefined,
       },
     });
   }, [
     chatNode?.data.modelConfig.provider,
     chatNode?.data.modelConfig.modelId,
     connectedContexts,
+    sharedContext,
   ]);
+
+  // Track last user message for context analysis
+  const lastUserMessageRef = useRef<string>("");
 
   const { messages, sendMessage, status, setMessages } = useChat({
     transport,
@@ -404,6 +449,16 @@ export function ChatSidebar() {
         if (assistantCount === 1 && DEFAULT_TITLE_PATTERN.test(node.data.title)) {
           suggestTitle(selectedNodeId, simpleMsgs);
           suggestProjectMeta(simpleMsgs);
+        }
+
+        // Background: analyze exchange for shared context updates (only in workspace mode)
+        if (store.projectId && store.sharedContext && lastUserMessageRef.current) {
+          maybeAnalyzeForContextUpdate(
+            selectedNodeId,
+            store.projectId,
+            lastUserMessageRef.current,
+            text
+          );
         }
       }
     },
@@ -465,6 +520,7 @@ export function ChatSidebar() {
 
     const msgId = uuid();
     const content = input;
+    lastUserMessageRef.current = content;
 
     // Write user message to Yjs (syncs to all peers)
     useCanvasStore.getState().addMessage(selectedNodeId, {
@@ -593,8 +649,57 @@ export function ChatSidebar() {
         </div>
       </div>
 
+      {/* Pending context updates panel */}
+      {contextPanelOpen && pendingContextUpdates.length > 0 && (
+        <div className="border-t border-border bg-muted/30 px-3 py-2 max-h-48 overflow-y-auto">
+          <p className="text-[10px] font-medium text-muted-foreground mb-1.5">
+            Proposed shared context updates
+          </p>
+          <div className="space-y-2">
+            {pendingContextUpdates.map((update) => (
+              <ContextUpdateCard
+                key={update.id}
+                update={update}
+                projectId={projectId ?? ""}
+                onAccept={async (u) => {
+                  const res = await fetch("/api/context/accept", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ projectId, updateId: u.id }),
+                  });
+                  if (res.ok) {
+                    const { section, value } = await res.json() as { section: keyof SharedContextDoc; value: string };
+                    updateSharedContextSection(section, value);
+                    removeContextUpdateProposal(u.id);
+                  }
+                }}
+                onReject={async (u) => {
+                  await fetch("/api/context/reject", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ projectId, updateId: u.id }),
+                  });
+                  removeContextUpdateProposal(u.id);
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Bottom section — input + model selector + context footer */}
       <div className={cn("border-t border-border", !sidebarExpanded && "rounded-b-xl")}>
+        {/* Context update badge */}
+        {pendingContextUpdates.length > 0 && (
+          <button
+            onClick={() => setContextPanelOpen((v) => !v)}
+            className="w-full flex items-center gap-1.5 px-3 py-1.5 text-[10px] text-amber-400 hover:text-amber-300 border-b border-border/40 bg-amber-500/5"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+            {pendingContextUpdates.length} shared context update{pendingContextUpdates.length !== 1 ? "s" : ""} to review
+            <ChevronDown className={cn("h-2.5 w-2.5 ml-auto transition-transform", contextPanelOpen && "rotate-180")} />
+          </button>
+        )}
         <form onSubmit={onSubmit} className={cn("px-3 pt-3", sidebarExpanded && "max-w-2xl mx-auto")}>
           <div className="relative">
             <Textarea
@@ -622,6 +727,47 @@ export function ChatSidebar() {
           </div>
         </form>
         <ConnectedContextFooter contexts={connectedContexts} />
+      </div>
+    </div>
+  );
+}
+
+function ContextUpdateCard({
+  update,
+  onAccept,
+  onReject,
+}: {
+  update: ContextUpdate;
+  projectId: string;
+  onAccept: (update: ContextUpdate) => Promise<void>;
+  onReject: (update: ContextUpdate) => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <div className="rounded border border-border/50 bg-card px-2.5 py-2 text-xs">
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <span className="text-[10px] text-muted-foreground font-mono">{update.targetSection}</span>
+      </div>
+      <p className="text-foreground leading-snug mb-1.5">{update.content}</p>
+      {update.rationale && (
+        <p className="text-[10px] text-muted-foreground italic mb-2">{update.rationale}</p>
+      )}
+      <div className="flex gap-1.5">
+        <button
+          onClick={async () => { setBusy(true); await onAccept(update); setBusy(false); }}
+          disabled={busy}
+          className="rounded px-2 py-0.5 text-[10px] bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50"
+        >
+          Accept
+        </button>
+        <button
+          onClick={async () => { setBusy(true); await onReject(update); setBusy(false); }}
+          disabled={busy}
+          className="rounded px-2 py-0.5 text-[10px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+        >
+          Dismiss
+        </button>
       </div>
     </div>
   );

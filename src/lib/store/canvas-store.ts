@@ -12,6 +12,9 @@ import {
   type ProjectMetadata,
   type SidebarMode,
   type SourceDetail,
+  type ProjectMode,
+  type SharedContextDoc,
+  type ContextUpdate,
 } from "@/types/canvas";
 import {
   applyNodeChanges,
@@ -35,6 +38,11 @@ import {
   yjsUpdateProjectPurpose,
   yjsUpdateFileContentPreview,
   yjsUpdateEdgeLabel,
+  yjsSetProjectMode,
+  yjsSetSharedContext,
+  yjsUpdateSharedContextSection,
+  yjsAddContextUpdateProposal,
+  yjsRemoveContextUpdateProposal,
 } from "@/lib/yjs/bridge";
 import {
   syncDeleteNode,
@@ -126,6 +134,18 @@ interface CanvasState {
   setPendingFirstMessage: (message: string | null) => void;
   setScreenToFlowPosition: (fn: ((point: { x: number; y: number }) => { x: number; y: number }) | null) => void;
   createChatFromInput: (message: string) => string;
+
+  // ── Shared cognitive workspace (projected from Yjs) ──
+  projectMode: ProjectMode;
+  sharedContext: SharedContextDoc | null;
+  pendingContextUpdates: ContextUpdate[];
+
+  // ── Workspace actions ──
+  setProjectMode: (mode: ProjectMode) => void;
+  setSharedContext: (context: SharedContextDoc) => void;
+  updateSharedContextSection: (section: keyof SharedContextDoc, value: string) => void;
+  addContextUpdateProposal: (update: ContextUpdate) => void;
+  removeContextUpdateProposal: (updateId: string) => void;
 }
 
 // Debounce helper for position syncs to Yjs
@@ -147,6 +167,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   project: { title: "Untitled Project", purpose: "" },
   projectId: null,
   hydrated: false,
+  projectMode: "canvas" as ProjectMode,
+  sharedContext: null,
+  pendingContextUpdates: [],
 
   // ── Local-only state ──
   selectedNodeId: null,
@@ -462,5 +485,30 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       set({ selectedNodeId: nodeId, sidebarOpen: true, _pendingFirstMessage: message });
     }
     return nodeId;
+  },
+
+  setProjectMode: (mode) => {
+    const doc = get()._yjsDoc;
+    if (doc) yjsSetProjectMode(doc, mode);
+  },
+
+  setSharedContext: (context) => {
+    const doc = get()._yjsDoc;
+    if (doc) yjsSetSharedContext(doc, context);
+  },
+
+  updateSharedContextSection: (section, value) => {
+    const doc = get()._yjsDoc;
+    if (doc) yjsUpdateSharedContextSection(doc, section, value);
+  },
+
+  addContextUpdateProposal: (update) => {
+    const doc = get()._yjsDoc;
+    if (doc) yjsAddContextUpdateProposal(doc, update);
+  },
+
+  removeContextUpdateProposal: (updateId) => {
+    const doc = get()._yjsDoc;
+    if (doc) yjsRemoveContextUpdateProposal(doc, updateId);
   },
 }));

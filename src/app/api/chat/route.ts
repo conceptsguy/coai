@@ -1,9 +1,48 @@
 import { streamText } from "ai";
 import { getModel } from "@/lib/ai/providers";
 import { createClient } from "@/lib/supabase/server";
-import type { ModelProvider, ConnectedContext } from "@/types/canvas";
+import type { ModelProvider, ConnectedContext, SharedContextDoc } from "@/types/canvas";
 
 export const maxDuration = 60;
+
+function buildSharedContextBlock(sc: SharedContextDoc): string {
+  const lines: string[] = [
+    "## Project Context",
+    "You are working within a shared cognitive workspace for a collaborative team.",
+    "",
+  ];
+
+  if (sc.problemStatement) {
+    lines.push(`**Problem Statement:** ${sc.problemStatement}`, "");
+  }
+
+  if (sc.constraintsAndGoals.length > 0) {
+    lines.push("**Constraints & Goals:**");
+    sc.constraintsAndGoals.forEach((item) => lines.push(`- ${item}`));
+    lines.push("");
+  }
+
+  if (sc.workstreams.length > 0) {
+    const labels = sc.workstreams.map((w) => w.label).join(", ");
+    lines.push(`**Active Workstreams:** ${labels}`, "");
+  }
+
+  if (sc.decisionsMade.length > 0) {
+    lines.push("**Key Decisions Made:**");
+    sc.decisionsMade.forEach((d) => lines.push(`- ${d.decision}`));
+    lines.push("");
+  }
+
+  if (sc.tensionsAndOpenQuestions.filter((t) => t.status === "open").length > 0) {
+    lines.push("**Open Questions & Tensions:**");
+    sc.tensionsAndOpenQuestions
+      .filter((t) => t.status === "open")
+      .forEach((t) => lines.push(`- ${t.description}`));
+    lines.push("");
+  }
+
+  return lines.join("\n");
+}
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -14,7 +53,7 @@ export async function POST(req: Request) {
 
   const body = await req.json();
 
-  const { messages, provider, modelId, connectedContexts } = body as {
+  const { messages, provider, modelId, connectedContexts, sharedContext } = body as {
     messages: Array<{
       role: "user" | "assistant" | "system";
       parts?: Array<{ type: string; text?: string }>;
@@ -22,6 +61,7 @@ export async function POST(req: Request) {
     provider: ModelProvider;
     modelId: string;
     connectedContexts?: ConnectedContext[];
+    sharedContext?: SharedContextDoc;
   };
 
   if (!provider || !modelId) {
@@ -43,8 +83,15 @@ export async function POST(req: Request) {
     }))
     .filter((msg) => msg.content.trim() !== "");
 
-  // Build system prompt with connected context
-  let systemPrompt: string | undefined;
+  // Build system prompt
+  const systemParts: string[] = [];
+
+  // 1. Shared context block (project-level awareness)
+  if (sharedContext) {
+    systemParts.push(buildSharedContextBlock(sharedContext));
+  }
+
+  // 2. Edge-based connected context (ADR-0006 — composable with shared context)
   if (connectedContexts && connectedContexts.length > 0) {
     const contextBlocks = connectedContexts
       .map((ctx) => {
@@ -55,15 +102,21 @@ export async function POST(req: Request) {
       })
       .join("\n\n---\n\n");
 
-    systemPrompt = `You are participating in a collaborative AI canvas where multiple chat threads and files exist and can be connected to share context.
-
-The following are summaries from chat threads and contents from files that have been connected to this conversation. Use this context to inform your responses — reference relevant points, build on ideas, and be aware of what has been discussed or documented elsewhere. If the user's question relates to something covered in a connected source, weave that context into your answer naturally.
-
-${contextBlocks}
-
----
-Use this connected context to provide more informed, contextually aware responses. You don't need to mention the connected sources explicitly unless it's relevant to do so.`;
+    systemParts.push(
+      `## Connected Thread Context\nThe following are summaries from chat threads and files connected to this conversation. Use this context to inform your responses — reference relevant points, build on ideas, and be aware of what has been discussed or documented elsewhere.\n\n${contextBlocks}`
+    );
   }
+
+  // 3. Closing instruction
+  if (systemParts.length > 0) {
+    systemParts.push(
+      "---\nRespond helpfully and naturally. If you surface a new insight, decision, or tension that the whole team should know about, mention it clearly — the user can choose to share it with teammates."
+    );
+  }
+
+  const systemPrompt = systemParts.length > 0
+    ? systemParts.join("\n\n")
+    : undefined;
 
   const model = getModel(provider, modelId);
 

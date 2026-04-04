@@ -103,6 +103,119 @@ export interface ProjectMetadata {
   purpose: string;
 }
 
+// ─── Shared Cognitive Workspace types ───────────────────────
+
+export type ProjectMode = "canvas" | "ideation";
+
+export interface Workstream {
+  id: string;
+  label: string;
+  topicNodeId: string;
+  description: string;
+}
+
+export interface EmergingTheme {
+  id: string;
+  theme: string;
+  sourceThreadIds: string[];
+  confidence: "low" | "medium" | "high";
+}
+
+export interface KeyInsight {
+  id: string;
+  insight: string;
+  sourceThreadId: string;
+  sourceUserId: string;
+  timestamp: string;
+}
+
+export interface TensionOrOpenQuestion {
+  id: string;
+  description: string;
+  relatedWorkstreams: string[];
+  status: "open" | "resolved";
+}
+
+export interface DecisionMade {
+  id: string;
+  decision: string;
+  rationale: string;
+  timestamp: string;
+}
+
+export interface SharedContextDoc {
+  mode: "ideation";
+  problemStatement: string;
+  constraintsAndGoals: string[];
+  workstreams: Workstream[];
+  emergingThemes: EmergingTheme[];
+  keyInsights: KeyInsight[];
+  tensionsAndOpenQuestions: TensionOrOpenQuestion[];
+  decisionsMade: DecisionMade[];
+  convergenceSummary?: string;
+}
+
+export interface ThreadMeta {
+  id: string;
+  topicNodeId: string;
+  ownerId: string;
+  participants: string[];
+  modelConfig: ModelConfig;
+  focusMode: boolean;
+  status: "active" | "parked" | "resolved";
+  lastActivity: string;
+}
+
+export interface ContextUpdate {
+  id: string;
+  projectId: string;
+  proposedByThreadId: string | null;
+  proposedByNodeId: string | null;
+  proposedByUserId: string;
+  targetSection: keyof SharedContextDoc;
+  content: string;
+  rationale: string;
+  status: "proposed" | "accepted" | "rejected";
+  timestamp: string;
+}
+
+export interface ProjectKickoffRequest {
+  projectId: string;
+  brief: string;
+}
+
+export interface ProjectKickoffResponse {
+  sharedContext: SharedContextDoc;
+  suggestedTopicNodes: Array<{
+    title: string;
+    description: string;
+    workstreamId: string;
+  }>;
+}
+
+export interface ContextProposeRequest {
+  projectId: string;
+  nodeId: string;
+  targetSection: keyof SharedContextDoc;
+  content: string;
+  rationale: string;
+}
+
+export interface ContextProposeResponse {
+  updateId: string;
+  update: ContextUpdate;
+}
+
+export interface ContextAcceptRequest {
+  projectId: string;
+  updateId: string;
+}
+
+export interface ContextAcceptResponse {
+  section: keyof SharedContextDoc;
+  value: string;
+}
+
 /** Yjs awareness state for a connected collaborator */
 export interface CollaboratorState {
   userId: string;

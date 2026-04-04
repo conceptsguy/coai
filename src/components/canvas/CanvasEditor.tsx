@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ReactFlow,
   Background,
@@ -20,7 +20,7 @@ import { ChatNode, CollaboratorsContext } from "@/components/canvas/ChatNode";
 import { FileNode } from "@/components/canvas/FileNode";
 import { CollaboratorCursors } from "@/components/canvas/CollaboratorCursors";
 import { AVAILABLE_MODELS } from "@/types/canvas";
-import type { CollaboratorState, ConnectionEdge } from "@/types/canvas";
+import type { CollaboratorState, ConnectionEdge, ProjectKickoffResponse } from "@/types/canvas";
 import { useYjs } from "@/lib/yjs/provider";
 import { yjsAddEdge } from "@/lib/yjs/bridge";
 import { syncInsertFileNode, syncInsertEdge } from "@/lib/supabase/sync";
@@ -53,11 +53,44 @@ interface CanvasEditorProps {
 }
 
 export function CanvasEditor({ collaborators, userId, userEmail }: CanvasEditorProps) {
-  const { nodes, edges, onNodesChange, onEdgesChange, addChatNode, selectedNodeId, selectedEdgeId, selectEdge, closeSidebar } =
+  const { nodes, edges, onNodesChange, onEdgesChange, addChatNode, selectedNodeId, selectedEdgeId, selectEdge, closeSidebar, projectMode, sharedContext, setSharedContext, setProjectMode, projectId } =
     useCanvasStore();
   const { screenToFlowPosition } = useReactFlow();
   const { doc, awareness } = useYjs();
   const broadcastCursor = useBroadcastCursor(awareness);
+
+  // Kickoff modal state
+  const [kickoffOpen, setKickoffOpen] = useState(false);
+  const [kickoffBrief, setKickoffBrief] = useState("");
+  const [kickoffLoading, setKickoffLoading] = useState(false);
+  const [kickoffDismissed, setKickoffDismissed] = useState(false);
+
+  const showKickoffBanner =
+    !kickoffDismissed &&
+    projectMode === "canvas" &&
+    sharedContext === null &&
+    nodes.length > 0;
+
+  const handleKickoff = useCallback(async () => {
+    if (!projectId || !kickoffBrief.trim()) return;
+    setKickoffLoading(true);
+    try {
+      const res = await fetch("/api/project/kickoff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId, brief: kickoffBrief }),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as ProjectKickoffResponse;
+        setSharedContext(data.sharedContext);
+        setProjectMode("ideation");
+        setKickoffOpen(false);
+        setKickoffBrief("");
+      }
+    } finally {
+      setKickoffLoading(false);
+    }
+  }, [projectId, kickoffBrief, setSharedContext, setProjectMode]);
 
   // Register screenToFlowPosition on the store so BottomInput can compute node positions
   useEffect(() => {
@@ -354,6 +387,62 @@ export function CanvasEditor({ collaborators, userId, userEmail }: CanvasEditorP
 
       {/* Collaborator cursors overlay */}
       <CollaboratorCursors collaborators={collaborators} />
+
+      {/* Shared context kickoff banner */}
+      {showKickoffBanner && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 px-3 py-2 rounded-md border border-border/60 bg-card/90 backdrop-blur-sm text-sm shadow-sm">
+          <span className="text-muted-foreground">No shared context.</span>
+          <button
+            onClick={() => setKickoffOpen(true)}
+            className="text-primary underline underline-offset-2 hover:no-underline"
+          >
+            Set up shared context →
+          </button>
+          <button
+            onClick={() => setKickoffDismissed(true)}
+            className="ml-1 text-muted-foreground hover:text-foreground"
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {/* Kickoff modal */}
+      {kickoffOpen && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-lg border border-border bg-card p-5 shadow-lg">
+            <h2 className="mb-1 text-sm font-semibold">Set up shared context</h2>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Describe what your team is working on. The AI will generate a structured project context that all threads will use.
+            </p>
+            <textarea
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+              rows={5}
+              placeholder="e.g. We're redesigning our onboarding flow to improve activation for enterprise customers. The current flow has a 40% drop-off at step 3..."
+              value={kickoffBrief}
+              onChange={(e) => setKickoffBrief(e.target.value)}
+              disabled={kickoffLoading}
+            />
+            <div className="mt-3 flex justify-end gap-2">
+              <button
+                onClick={() => { setKickoffOpen(false); setKickoffBrief(""); }}
+                className="rounded px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+                disabled={kickoffLoading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleKickoff}
+                disabled={!kickoffBrief.trim() || kickoffLoading}
+                className="rounded bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
+              >
+                {kickoffLoading ? "Generating..." : "Generate context"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

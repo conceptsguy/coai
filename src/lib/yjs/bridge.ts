@@ -9,6 +9,10 @@ import type {
   FileNodeData,
   ModelConfig,
   ProjectMetadata,
+  ProjectMode,
+  SharedContextDoc,
+  ThreadMeta,
+  ContextUpdate,
 } from "@/types/canvas";
 import { useCanvasStore } from "@/lib/store/canvas-store";
 import {
@@ -17,6 +21,10 @@ import {
   getMessagesMap,
   getNodeMessages,
   getProjectMap,
+  getSharedContextMap,
+  getThreadsMap,
+  getContextUpdatesMap,
+  getProjectMode,
 } from "./doc";
 import {
   nodeToYMap,
@@ -214,6 +222,99 @@ export function yjsUpdateEdgeLabel(doc: Y.Doc, edgeId: string, label: string) {
 }
 
 // ─────────────────────────────────────────────
+// Shared Cognitive Workspace write-side actions
+// ─────────────────────────────────────────────
+
+export function yjsSetProjectMode(doc: Y.Doc, mode: ProjectMode) {
+  getProjectMap(doc).set("mode", mode);
+}
+
+/**
+ * Replaces the entire shared context document in Yjs atomically.
+ * Scalar fields stored as plain strings; array fields as JSON strings.
+ */
+export function yjsSetSharedContext(doc: Y.Doc, context: SharedContextDoc) {
+  const m = getSharedContextMap(doc);
+  doc.transact(() => {
+    m.set("mode", context.mode);
+    m.set("problemStatement", context.problemStatement);
+    m.set("constraintsAndGoals", JSON.stringify(context.constraintsAndGoals));
+    m.set("workstreams", JSON.stringify(context.workstreams));
+    m.set("emergingThemes", JSON.stringify(context.emergingThemes));
+    m.set("keyInsights", JSON.stringify(context.keyInsights));
+    m.set("tensionsAndOpenQuestions", JSON.stringify(context.tensionsAndOpenQuestions));
+    m.set("decisionsMade", JSON.stringify(context.decisionsMade));
+    m.set("convergenceSummary", context.convergenceSummary ?? "");
+  });
+}
+
+/**
+ * Updates a single section of the shared context document.
+ * For array fields, `value` must already be a JSON string.
+ * For scalar fields, `value` is the plain string.
+ */
+export function yjsUpdateSharedContextSection(
+  doc: Y.Doc,
+  section: keyof SharedContextDoc,
+  value: string
+) {
+  getSharedContextMap(doc).set(section as string, value);
+}
+
+/**
+ * Upserts thread metadata for a given node (keyed by topicNodeId).
+ */
+export function yjsSetThreadMeta(doc: Y.Doc, meta: ThreadMeta) {
+  const threadsMap = getThreadsMap(doc);
+  let m = threadsMap.get(meta.topicNodeId);
+  if (!m) {
+    m = new Y.Map<unknown>();
+    threadsMap.set(meta.topicNodeId, m);
+  }
+  doc.transact(() => {
+    m!.set("id", meta.id);
+    m!.set("topicNodeId", meta.topicNodeId);
+    m!.set("ownerId", meta.ownerId);
+    m!.set("participants", JSON.stringify(meta.participants));
+    m!.set("modelProvider", meta.modelConfig.provider);
+    m!.set("modelId", meta.modelConfig.modelId);
+    m!.set("modelLabel", meta.modelConfig.label);
+    m!.set("focusMode", meta.focusMode);
+    m!.set("status", meta.status);
+    m!.set("lastActivity", meta.lastActivity);
+  });
+}
+
+/**
+ * Adds a proposed context update to the pending updates map.
+ * Propagates to all collaborators in real-time via PartyKit.
+ */
+export function yjsAddContextUpdateProposal(doc: Y.Doc, update: ContextUpdate) {
+  const updatesMap = getContextUpdatesMap(doc);
+  const m = new Y.Map<unknown>();
+  doc.transact(() => {
+    m.set("id", update.id);
+    m.set("projectId", update.projectId);
+    m.set("proposedByThreadId", update.proposedByThreadId ?? "");
+    m.set("proposedByNodeId", update.proposedByNodeId ?? "");
+    m.set("proposedByUserId", update.proposedByUserId);
+    m.set("targetSection", update.targetSection as string);
+    m.set("content", update.content);
+    m.set("rationale", update.rationale);
+    m.set("status", update.status);
+    m.set("timestamp", update.timestamp);
+    updatesMap.set(update.id, m);
+  });
+}
+
+/**
+ * Removes a context update from the pending map (after accept or reject).
+ */
+export function yjsRemoveContextUpdateProposal(doc: Y.Doc, updateId: string) {
+  getContextUpdatesMap(doc).delete(updateId);
+}
+
+// ─────────────────────────────────────────────
 // Read side: observers that project Yjs → Zustand
 // ─────────────────────────────────────────────
 
@@ -257,10 +358,60 @@ function buildProject(doc: Y.Doc): ProjectMetadata {
   };
 }
 
+function buildSharedContext(doc: Y.Doc): SharedContextDoc | null {
+  const m = getSharedContextMap(doc);
+  if (m.size === 0) return null;
+
+  function parseJsonField<T>(key: string, fallback: T): T {
+    const raw = m.get(key) as string | undefined;
+    if (!raw) return fallback;
+    try {
+      return JSON.parse(raw) as T;
+    } catch {
+      return fallback;
+    }
+  }
+
+  return {
+    mode: "ideation",
+    problemStatement: (m.get("problemStatement") as string) ?? "",
+    constraintsAndGoals: parseJsonField("constraintsAndGoals", []),
+    workstreams: parseJsonField("workstreams", []),
+    emergingThemes: parseJsonField("emergingThemes", []),
+    keyInsights: parseJsonField("keyInsights", []),
+    tensionsAndOpenQuestions: parseJsonField("tensionsAndOpenQuestions", []),
+    decisionsMade: parseJsonField("decisionsMade", []),
+    convergenceSummary: (m.get("convergenceSummary") as string) || undefined,
+  };
+}
+
+function buildContextUpdateProposals(doc: Y.Doc): ContextUpdate[] {
+  const updatesMap = getContextUpdatesMap(doc);
+  const updates: ContextUpdate[] = [];
+  updatesMap.forEach((m) => {
+    updates.push({
+      id: m.get("id") as string,
+      projectId: m.get("projectId") as string,
+      proposedByThreadId: (m.get("proposedByThreadId") as string) || null,
+      proposedByNodeId: (m.get("proposedByNodeId") as string) || null,
+      proposedByUserId: m.get("proposedByUserId") as string,
+      targetSection: m.get("targetSection") as keyof SharedContextDoc,
+      content: m.get("content") as string,
+      rationale: m.get("rationale") as string,
+      status: m.get("status") as ContextUpdate["status"],
+      timestamp: m.get("timestamp") as string,
+    });
+  });
+  return updates;
+}
+
 function syncToZustand(doc: Y.Doc) {
   const nodes = buildNodesArray(doc);
   const edges = buildEdgesArray(doc);
   const project = buildProject(doc);
+  const sharedContext = buildSharedContext(doc);
+  const pendingContextUpdates = buildContextUpdateProposals(doc);
+  const projectMode = getProjectMode(doc);
 
   const state = useCanvasStore.getState();
 
@@ -285,7 +436,7 @@ function syncToZustand(doc: Y.Doc) {
     }
   }
 
-  useCanvasStore.setState({ nodes, edges, project });
+  useCanvasStore.setState({ nodes, edges, project, sharedContext, pendingContextUpdates, projectMode });
 }
 
 /**
@@ -297,6 +448,9 @@ export function observeYjsDoc(doc: Y.Doc): () => void {
   const edgesMap = getEdgesMap(doc);
   const messagesMap = getMessagesMap(doc);
   const projectMap = getProjectMap(doc);
+  const sharedContextMap = getSharedContextMap(doc);
+  const contextUpdatesMap = getContextUpdatesMap(doc);
+  const threadsMap = getThreadsMap(doc);
 
   const handler = () => syncToZustand(doc);
 
@@ -305,6 +459,9 @@ export function observeYjsDoc(doc: Y.Doc): () => void {
   edgesMap.observeDeep(handler);
   messagesMap.observeDeep(handler);
   projectMap.observeDeep(handler);
+  sharedContextMap.observeDeep(handler);
+  contextUpdatesMap.observeDeep(handler);
+  threadsMap.observeDeep(handler);
 
   // Initial sync
   syncToZustand(doc);
@@ -314,5 +471,8 @@ export function observeYjsDoc(doc: Y.Doc): () => void {
     edgesMap.unobserveDeep(handler);
     messagesMap.unobserveDeep(handler);
     projectMap.unobserveDeep(handler);
+    sharedContextMap.unobserveDeep(handler);
+    contextUpdatesMap.unobserveDeep(handler);
+    threadsMap.unobserveDeep(handler);
   };
 }
