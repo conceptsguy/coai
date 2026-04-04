@@ -68,7 +68,7 @@ function CanvasInner({ userId, userEmail, role, projectId, isNew }: { userId: st
     <div className="h-screen w-screen flex flex-col overflow-hidden">
       <TopBar connected={connected} collaborators={collaborators} role={role} projectId={projectId} />
       {viewMode === "thread" ? (
-        <ThreadView projectId={projectId} />
+        <ThreadView projectId={projectId} collaborators={collaborators} />
       ) : (
         <div className="flex-1 flex overflow-hidden relative">
           <ReactFlowProvider>

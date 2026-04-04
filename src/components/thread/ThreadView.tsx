@@ -2,6 +2,8 @@
 
 import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { useCanvasStore } from "@/lib/store/canvas-store";
+import { useYjs } from "@/lib/yjs/provider";
+import { setLocalAwareness, getColorForName } from "@/lib/yjs/awareness";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { v4 as uuid } from "uuid";
@@ -19,10 +21,9 @@ import {
 } from "lucide-react";
 import { ModelSelector } from "@/components/chat/ModelSelector";
 import { SharedContextPanel } from "@/components/thread/SharedContextPanel";
-import { getColorForName } from "@/lib/yjs/awareness";
 import { syncInsertMessage } from "@/lib/supabase/sync";
 import { cn } from "@/lib/utils";
-import type { ConnectedContext } from "@/types/canvas";
+import type { CollaboratorState, ConnectedContext } from "@/types/canvas";
 
 // ── helpers mirrored from ChatSidebar ────────────────────────────────────────
 
@@ -121,7 +122,11 @@ async function maybeAnalyzeForContextUpdate(
 
 // ── Thread list (left panel) ──────────────────────────────────────────────────
 
-function ThreadListPanel() {
+function ThreadListPanel({
+  collaborators,
+}: {
+  collaborators: CollaboratorState[];
+}) {
   const nodes = useCanvasStore((s) => s.nodes);
   const selectedNodeId = useCanvasStore((s) => s.selectedNodeId);
   const createAndSelectThread = useCanvasStore((s) => s.createAndSelectThread);
@@ -168,6 +173,10 @@ function ThreadListPanel() {
             const messageCount = node.data.messages.filter(
               (m) => m.role !== "system"
             ).length;
+            // Collaborators currently viewing this thread
+            const presentHere = collaborators.filter(
+              (c) => c.selectedNodeId === node.id
+            );
 
             return (
               <button
@@ -213,6 +222,19 @@ function ThreadListPanel() {
                     )}
                   </div>
                 </div>
+                {/* Collaborator presence dots */}
+                {presentHere.length > 0 && (
+                  <div className="flex items-center gap-0.5 shrink-0 mt-1">
+                    {presentHere.slice(0, 3).map((c) => (
+                      <div
+                        key={c.userId}
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: c.color }}
+                        title={c.displayName}
+                      />
+                    ))}
+                  </div>
+                )}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -296,7 +318,7 @@ function EditableThreadTitle({
 
 // ── Thread chat area (center) ─────────────────────────────────────────────────
 
-function ThreadChatArea({ projectId }: { projectId: string }) {
+function ThreadChatArea({ projectId }: { projectId: string; }) {
   const nodes = useCanvasStore((s) => s.nodes);
   const edges = useCanvasStore((s) => s.edges);
   const selectedNodeId = useCanvasStore((s) => s.selectedNodeId);
@@ -307,8 +329,14 @@ function ThreadChatArea({ projectId }: { projectId: string }) {
   const toggleFocusMode = useCanvasStore((s) => s.toggleFocusMode);
   const toggleContextPanel = useCanvasStore((s) => s.toggleContextPanel);
   const createAndSelectThread = useCanvasStore((s) => s.createAndSelectThread);
+  const { awareness } = useYjs();
 
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Broadcast selected thread to collaborators via awareness
+  useEffect(() => {
+    setLocalAwareness(awareness, { selectedNodeId });
+  }, [awareness, selectedNodeId]);
   const [input, setInput] = useState("");
   const lastUserMessageRef = useRef<string>("");
 
@@ -598,9 +626,10 @@ function ThreadChatArea({ projectId }: { projectId: string }) {
 
 interface ThreadViewProps {
   projectId: string;
+  collaborators: CollaboratorState[];
 }
 
-export function ThreadView({ projectId }: ThreadViewProps) {
+export function ThreadView({ projectId, collaborators }: ThreadViewProps) {
   const focusMode = useCanvasStore((s) => s.focusMode);
   const contextPanelOpen = useCanvasStore((s) => s.contextPanelOpen);
 
@@ -608,7 +637,7 @@ export function ThreadView({ projectId }: ThreadViewProps) {
 
   return (
     <div className="flex-1 flex overflow-hidden">
-      <ThreadListPanel />
+      <ThreadListPanel collaborators={collaborators} />
       <ThreadChatArea projectId={projectId} />
       {showContextPanel && <SharedContextPanel projectId={projectId} />}
     </div>

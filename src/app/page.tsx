@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { LandingPage } from "@/components/landing/LandingPage";
 import { ImageCard } from "@/components/dashboard/ImageCard";
+import { NewProjectDialog } from "@/components/dashboard/NewProjectDialog";
 
 async function createCanvas() {
   "use server";
@@ -94,16 +95,19 @@ export default async function Home() {
             Your canvases
           </h1>
 
-          <form action={createCanvas} className="mb-8">
-            <Button
-              type="submit"
-              size="lg"
-              className="text-sm px-8 bg-landing-ink text-white hover:bg-landing-ink/90 rounded-full"
-              style={{ fontFamily: "var(--font-poppins)" }}
-            >
-              New Canvas
-            </Button>
-          </form>
+          <div className="flex items-center gap-3 mb-8 flex-wrap">
+            <form action={createCanvas}>
+              <Button
+                type="submit"
+                size="lg"
+                className="text-sm px-8 bg-landing-ink text-white hover:bg-landing-ink/90 rounded-full"
+                style={{ fontFamily: "var(--font-poppins)" }}
+              >
+                New canvas
+              </Button>
+            </form>
+            <NewProjectDialog />
+          </div>
 
           {projects && projects.length > 0 && (
             <div className="space-y-1.5 mb-8">

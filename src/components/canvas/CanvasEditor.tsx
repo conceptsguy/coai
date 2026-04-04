@@ -92,6 +92,17 @@ export function CanvasEditor({ collaborators, userId, userEmail }: CanvasEditorP
     }
   }, [projectId, kickoffBrief, setSharedContext, setProjectMode]);
 
+  // Auto-trigger kickoff if brief was stored from NewProjectDialog on landing page
+  useEffect(() => {
+    if (!projectId) return;
+    const stored = sessionStorage.getItem(`kickoff:${projectId}`);
+    if (stored) {
+      sessionStorage.removeItem(`kickoff:${projectId}`);
+      setKickoffBrief(stored);
+      setKickoffOpen(true);
+    }
+  }, [projectId]);
+
   // Register screenToFlowPosition on the store so BottomInput can compute node positions
   useEffect(() => {
     useCanvasStore.getState().setScreenToFlowPosition(screenToFlowPosition);

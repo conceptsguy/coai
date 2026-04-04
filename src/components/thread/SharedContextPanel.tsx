@@ -1,9 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { useCanvasStore } from "@/lib/store/canvas-store";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { X, ChevronRight, Check } from "lucide-react";
+import { X, ChevronRight, Check, Sparkles, Loader2 } from "lucide-react";
 import type { ContextUpdate } from "@/types/canvas";
 
 function ContextUpdateCard({
@@ -87,6 +88,38 @@ export function SharedContextPanel({ projectId }: SharedContextPanelProps) {
   const sharedContext = useCanvasStore((s) => s.sharedContext);
   const pendingContextUpdates = useCanvasStore((s) => s.pendingContextUpdates);
   const toggleContextPanel = useCanvasStore((s) => s.toggleContextPanel);
+  const updateSharedContextSection = useCanvasStore(
+    (s) => s.updateSharedContextSection
+  );
+  const nodes = useCanvasStore((s) => s.nodes);
+  const [synthesizing, setSynthesizing] = useState(false);
+
+  // Show Synthesize button when we have context + at least one thread with a summary
+  const threadsWithSummaries = nodes.filter(
+    (n) => n.type === "chat" && n.data.summary
+  ).length;
+  const canSynthesize =
+    !!sharedContext && threadsWithSummaries > 0 && !synthesizing;
+
+  const handleSynthesize = async () => {
+    if (!canSynthesize) return;
+    setSynthesizing(true);
+    try {
+      const res = await fetch("/api/context/synthesize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId }),
+      });
+      if (res.ok) {
+        const { convergenceSummary } = await res.json();
+        if (convergenceSummary) {
+          updateSharedContextSection("convergenceSummary", convergenceSummary);
+        }
+      }
+    } finally {
+      setSynthesizing(false);
+    }
+  };
 
   return (
     <div className="w-[320px] border-l border-border bg-sidebar flex flex-col shrink-0">
@@ -107,8 +140,8 @@ export function SharedContextPanel({ projectId }: SharedContextPanelProps) {
         <div className="p-3 space-y-4">
           {!sharedContext ? (
             <p className="text-xs text-muted-foreground text-center py-6">
-              No shared context yet. Kick off the project from Map View to seed
-              the shared document.
+              No shared context yet. Switch to Map View and click the kickoff
+              banner to seed the shared document.
             </p>
           ) : (
             <>
@@ -141,6 +174,70 @@ export function SharedContextPanel({ projectId }: SharedContextPanelProps) {
                 </section>
               )}
 
+              {/* Workstreams */}
+              {sharedContext.workstreams.length > 0 && (
+                <section className="space-y-1">
+                  <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                    Workstreams
+                  </h4>
+                  <ul className="space-y-1">
+                    {sharedContext.workstreams.map((ws, i) => {
+                      const label =
+                        typeof ws === "string"
+                          ? ws
+                          : (ws as { label?: string }).label ?? String(ws);
+                      const desc =
+                        typeof ws === "object" &&
+                        (ws as { description?: string }).description;
+                      return (
+                        <li key={i} className="text-xs">
+                          <span className="font-medium">{label}</span>
+                          {desc && (
+                            <span className="text-muted-foreground ml-1">
+                              — {desc}
+                            </span>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              )}
+
+              {/* Emerging Themes */}
+              {sharedContext.emergingThemes.length > 0 && (
+                <section className="space-y-1">
+                  <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                    Emerging Themes
+                  </h4>
+                  <ul className="space-y-0.5">
+                    {sharedContext.emergingThemes.map((item, i) => {
+                      const theme =
+                        typeof item === "string"
+                          ? item
+                          : (item as { theme?: string }).theme ?? String(item);
+                      const confidence =
+                        typeof item === "object"
+                          ? (item as { confidence?: string }).confidence
+                          : null;
+                      return (
+                        <li key={i} className="text-xs flex items-start gap-1.5">
+                          <span className="text-violet-400 mt-0.5 shrink-0">◆</span>
+                          <span className="leading-relaxed">
+                            {theme}
+                            {confidence && (
+                              <span className="ml-1 text-[9px] text-muted-foreground">
+                                ({confidence})
+                              </span>
+                            )}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              )}
+
               {/* Key Insights */}
               {sharedContext.keyInsights.length > 0 && (
                 <section className="space-y-1">
@@ -148,17 +245,21 @@ export function SharedContextPanel({ projectId }: SharedContextPanelProps) {
                     Key Insights
                   </h4>
                   <ul className="space-y-0.5">
-                    {sharedContext.keyInsights.map((item, i) => (
-                      <li key={i} className="text-xs flex gap-1.5">
-                        <span className="text-muted-foreground mt-0.5">·</span>
-                        <span className="leading-relaxed">
-                          {typeof item === "string"
-                            ? item
-                            : (item as { label?: string; description?: string }).label ??
-                              String(item)}
-                        </span>
-                      </li>
-                    ))}
+                    {sharedContext.keyInsights.map((item, i) => {
+                      const text =
+                        typeof item === "string"
+                          ? item
+                          : (item as { insight?: string; label?: string })
+                              .insight ??
+                            (item as { label?: string }).label ??
+                            String(item);
+                      return (
+                        <li key={i} className="text-xs flex gap-1.5">
+                          <span className="text-muted-foreground mt-0.5">·</span>
+                          <span className="leading-relaxed">{text}</span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </section>
               )}
@@ -170,53 +271,94 @@ export function SharedContextPanel({ projectId }: SharedContextPanelProps) {
                     Decisions Made
                   </h4>
                   <ul className="space-y-0.5">
-                    {sharedContext.decisionsMade.map((item, i) => (
-                      <li key={i} className="text-xs flex gap-1.5">
-                        <span className="text-emerald-500 mt-0.5 shrink-0">✓</span>
-                        <span className="leading-relaxed">
-                          {typeof item === "string"
-                            ? item
-                            : (item as { description?: string }).description ??
-                              String(item)}
-                        </span>
-                      </li>
-                    ))}
+                    {sharedContext.decisionsMade.map((item, i) => {
+                      const text =
+                        typeof item === "string"
+                          ? item
+                          : (item as { decision?: string; description?: string })
+                              .decision ??
+                            (item as { description?: string }).description ??
+                            String(item);
+                      return (
+                        <li key={i} className="text-xs flex gap-1.5">
+                          <span className="text-emerald-500 mt-0.5 shrink-0">
+                            ✓
+                          </span>
+                          <span className="leading-relaxed">{text}</span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </section>
               )}
 
-              {/* Open Tensions */}
+              {/* Open Questions & Tensions */}
               {sharedContext.tensionsAndOpenQuestions.length > 0 && (
                 <section className="space-y-1">
                   <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
                     Open Questions
                   </h4>
                   <ul className="space-y-0.5">
-                    {sharedContext.tensionsAndOpenQuestions.map((item, i) => (
-                      <li key={i} className="text-xs flex gap-1.5">
-                        <span className="text-amber-500 mt-0.5 shrink-0">?</span>
-                        <span className="leading-relaxed">
-                          {typeof item === "string"
-                            ? item
-                            : (item as { question?: string }).question ??
-                              String(item)}
-                        </span>
-                      </li>
-                    ))}
+                    {sharedContext.tensionsAndOpenQuestions.map((item, i) => {
+                      const text =
+                        typeof item === "string"
+                          ? item
+                          : (
+                              item as {
+                                description?: string;
+                                question?: string;
+                              }
+                            ).description ??
+                            (item as { question?: string }).question ??
+                            String(item);
+                      return (
+                        <li key={i} className="text-xs flex gap-1.5">
+                          <span className="text-amber-500 mt-0.5 shrink-0">
+                            ?
+                          </span>
+                          <span className="leading-relaxed">{text}</span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </section>
               )}
 
               {/* Convergence Summary */}
               {sharedContext.convergenceSummary && (
-                <section className="space-y-1">
-                  <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                <section className="space-y-1 rounded-md border border-primary/20 bg-primary/5 p-2.5">
+                  <h4 className="text-[10px] font-semibold text-primary uppercase tracking-wide">
                     Convergence Summary
                   </h4>
-                  <p className="text-xs leading-relaxed text-muted-foreground">
+                  <p className="text-xs leading-relaxed">
                     {sharedContext.convergenceSummary}
                   </p>
                 </section>
+              )}
+
+              {/* Synthesize button */}
+              {(canSynthesize || synthesizing) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full h-7 text-xs gap-1.5"
+                  onClick={handleSynthesize}
+                  disabled={synthesizing}
+                >
+                  {synthesizing ? (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Synthesizing…
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-3 w-3" />
+                      {sharedContext.convergenceSummary
+                        ? "Re-synthesize"
+                        : "Synthesize threads"}
+                    </>
+                  )}
+                </Button>
               )}
             </>
           )}
