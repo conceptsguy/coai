@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { ArrowLeft, PanelLeft, EllipsisVertical, Trash2 } from "lucide-react";
 import { ShareDialog } from "@/components/canvas/ShareDialog";
+import { ViewSwitcher } from "@/components/canvas/ViewSwitcher";
 import type { CollaboratorState } from "@/types/canvas";
 
 function EditableProjectTitle() {
@@ -154,7 +155,7 @@ export function TopBar({ connected, collaborators, role, projectId }: TopBarProp
   return (
     <div className="h-10 px-3 border-b border-border bg-card flex items-center justify-between shrink-0">
       {/* Left section */}
-      <div className="flex items-center gap-2 min-w-0">
+      <div className="flex items-center gap-2 min-w-0 flex-1">
         <Button
           variant="ghost"
           size="icon-xs"
@@ -176,8 +177,13 @@ export function TopBar({ connected, collaborators, role, projectId }: TopBarProp
         <EditableProjectPurpose />
       </div>
 
+      {/* Center section */}
+      <div className="shrink-0">
+        <ViewSwitcher />
+      </div>
+
       {/* Right section */}
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-2 shrink-0 flex-1 justify-end">
         {!connected && (
           <span className="text-xs text-amber-500 flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-amber-500" />

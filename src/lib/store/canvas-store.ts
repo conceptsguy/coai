@@ -65,6 +65,12 @@ interface CanvasState {
   sidebarOpen: boolean;
   sidebarMode: SidebarMode;
   leftPanelOpen: boolean;
+  /** Thread ↔ Map view toggle (per-user, not synced to Yjs) */
+  viewMode: "map" | "thread";
+  /** Hides shared context panel in Thread View for focused work */
+  focusMode: boolean;
+  /** Whether the shared context right panel is open in Thread View */
+  contextPanelOpen: boolean;
   /** Yjs doc reference — set by the provider */
   _yjsDoc: Y.Doc | null;
   /** Node currently receiving streaming AI response (local-only) */
@@ -130,6 +136,13 @@ interface CanvasState {
   // ── Left panel ──
   toggleLeftPanel: () => void;
 
+  // ── View modes ──
+  setViewMode: (mode: "map" | "thread") => void;
+  toggleFocusMode: () => void;
+  toggleContextPanel: () => void;
+  /** Create a new thread node and immediately select it (Thread View entry point) */
+  createAndSelectThread: () => string;
+
   // ── Bottom input → new chat ──
   setPendingFirstMessage: (message: string | null) => void;
   setScreenToFlowPosition: (fn: ((point: { x: number; y: number }) => { x: number; y: number }) | null) => void;
@@ -178,6 +191,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   sidebarMode: "chat" as SidebarMode,
   sidebarExpanded: false,
   leftPanelOpen: true,
+  viewMode: "map" as "map" | "thread",
+  focusMode: false,
+  contextPanelOpen: true,
   _yjsDoc: null,
   _streamingNodeId: null,
   _pendingFirstMessage: null,
@@ -460,6 +476,33 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   toggleLeftPanel: () => {
     set((state) => ({ leftPanelOpen: !state.leftPanelOpen }));
+  },
+
+  setViewMode: (mode) => {
+    set({ viewMode: mode });
+  },
+
+  toggleFocusMode: () => {
+    set((state) => ({ focusMode: !state.focusMode }));
+  },
+
+  toggleContextPanel: () => {
+    set((state) => ({ contextPanelOpen: !state.contextPanelOpen }));
+  },
+
+  createAndSelectThread: () => {
+    const { _yjsDoc: doc, _currentUserId, _currentUserName } = get();
+    if (!doc) return "";
+    // Place at a staggered position based on existing node count
+    const nodeCount = get().nodes.length;
+    const x = 120 + (nodeCount % 5) * 200;
+    const y = 120 + Math.floor(nodeCount / 5) * 160;
+    const nodeId = yjsAddNode(doc, { x, y }, AVAILABLE_MODELS[0], {
+      userId: _currentUserId,
+      displayName: _currentUserName,
+    });
+    set({ selectedNodeId: nodeId });
+    return nodeId;
   },
 
   setPendingFirstMessage: (message) => {

@@ -11,6 +11,7 @@ import { TopBar } from "@/components/canvas/TopBar";
 import { ChatListPanel } from "@/components/canvas/ChatListPanel";
 import { BottomInput } from "@/components/canvas/BottomInput";
 import { OnboardingModal } from "@/components/canvas/OnboardingModal";
+import { ThreadView } from "@/components/thread/ThreadView";
 
 interface CanvasClientShellProps {
   projectId: string;
@@ -25,6 +26,7 @@ function CanvasInner({ userId, userEmail, role, projectId, isNew }: { userId: st
   const hydrated = useCanvasStore((s) => s.hydrated);
   const leftPanelOpen = useCanvasStore((s) => s.leftPanelOpen);
   const sidebarOpen = useCanvasStore((s) => s.sidebarOpen);
+  const viewMode = useCanvasStore((s) => s.viewMode);
   const collaborators = useCollaborators(awareness);
 
   // Bind the Yjs doc to the store so actions can write to it
@@ -65,16 +67,20 @@ function CanvasInner({ userId, userEmail, role, projectId, isNew }: { userId: st
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden">
       <TopBar connected={connected} collaborators={collaborators} role={role} projectId={projectId} />
-      <div className="flex-1 flex overflow-hidden relative">
-        <ReactFlowProvider>
-          {leftPanelOpen && <ChatListPanel />}
-          <div className="flex-1 relative">
-            <CanvasEditor collaborators={collaborators} userId={userId} userEmail={userEmail} />
-            {!sidebarOpen && <BottomInput />}
-          </div>
-          <ChatSidebar />
-        </ReactFlowProvider>
-      </div>
+      {viewMode === "thread" ? (
+        <ThreadView projectId={projectId} />
+      ) : (
+        <div className="flex-1 flex overflow-hidden relative">
+          <ReactFlowProvider>
+            {leftPanelOpen && <ChatListPanel />}
+            <div className="flex-1 relative">
+              <CanvasEditor collaborators={collaborators} userId={userId} userEmail={userEmail} />
+              {!sidebarOpen && <BottomInput />}
+            </div>
+            <ChatSidebar />
+          </ReactFlowProvider>
+        </div>
+      )}
       {isNew && (
         <OnboardingModal
           projectId={projectId}
