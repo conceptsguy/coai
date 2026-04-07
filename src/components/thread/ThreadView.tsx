@@ -179,9 +179,12 @@ function ThreadListPanel({
             );
 
             return (
-              <button
+              <div
                 key={node.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => selectThread(node.id)}
+                onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && selectThread(node.id)}
                 className={`group w-full text-left px-3 py-1.5 flex items-start gap-2 cursor-pointer transition-colors ${
                   isSelected ? "bg-muted" : "hover:bg-muted/50"
                 }`}
@@ -245,7 +248,7 @@ function ThreadListPanel({
                 >
                   <Trash2 className="h-3 w-3" />
                 </button>
-              </button>
+              </div>
             );
           })}
         </div>

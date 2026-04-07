@@ -69,9 +69,12 @@ export function ChatListPanel() {
             ).length;
 
             return (
-              <button
+              <div
                 key={node.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => openSidebar(node.id)}
+                onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && openSidebar(node.id)}
                 className={`group w-full text-left px-3 py-1.5 flex items-start gap-2 cursor-pointer transition-colors ${
                   isSelected
                     ? "bg-muted"
@@ -124,7 +127,7 @@ export function ChatListPanel() {
                 >
                   <Trash2 className="h-3 w-3" />
                 </button>
-              </button>
+              </div>
             );
           })}
         </div>
@@ -154,9 +157,12 @@ export function ChatListPanel() {
               const ext = getFileExtension(node.data.fileName);
 
               return (
-                <button
+                <div
                   key={node.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => openSidebar(node.id)}
+                  onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && openSidebar(node.id)}
                   className={`group w-full text-left px-2.5 py-2 rounded-lg border transition-colors cursor-pointer ${
                     isSelected
                       ? "bg-muted border-border"
@@ -191,7 +197,7 @@ export function ChatListPanel() {
                       <Trash2 className="h-3 w-3" />
                     </button>
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>

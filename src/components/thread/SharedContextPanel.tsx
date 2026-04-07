@@ -20,27 +20,51 @@ function ContextUpdateCard({
   const updateSharedContextSection = useCanvasStore(
     (s) => s.updateSharedContextSection
   );
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleAccept = async () => {
-    const res = await fetch("/api/context/accept", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId, updateId: update.id }),
-    });
-    if (res.ok) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/context/accept", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId, updateId: update.id }),
+      });
+      if (!res.ok) {
+        setError("Failed to accept. Try again.");
+        return;
+      }
       const { section, value } = await res.json();
       updateSharedContextSection(section, value);
       removeContextUpdateProposal(update.id);
+    } catch {
+      setError("Failed to accept. Try again.");
+    } finally {
+      setBusy(false);
     }
   };
 
   const handleReject = async () => {
-    await fetch("/api/context/reject", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId, updateId: update.id }),
-    });
-    removeContextUpdateProposal(update.id);
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/context/reject", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId, updateId: update.id }),
+      });
+      if (!res.ok) {
+        setError("Failed to dismiss. Try again.");
+        return;
+      }
+      removeContextUpdateProposal(update.id);
+    } catch {
+      setError("Failed to dismiss. Try again.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -62,6 +86,7 @@ function ContextUpdateCard({
           variant="outline"
           className="h-6 px-2 text-[10px] gap-1 text-emerald-600 border-emerald-600/30 hover:bg-emerald-600/10"
           onClick={handleAccept}
+          disabled={busy}
         >
           <Check className="h-2.5 w-2.5" />
           Accept
@@ -71,11 +96,15 @@ function ContextUpdateCard({
           variant="ghost"
           className="h-6 px-2 text-[10px] gap-1 text-muted-foreground hover:text-destructive"
           onClick={handleReject}
+          disabled={busy}
         >
           <X className="h-2.5 w-2.5" />
           Dismiss
         </Button>
       </div>
+      {error && (
+        <p className="text-[10px] text-destructive">{error}</p>
+      )}
     </div>
   );
 }

@@ -50,6 +50,25 @@ export async function POST(req: Request) {
     return Response.json({ update: null });
   }
 
+  // Verify project membership before calling AI
+  const { data: project } = await supabase
+    .from("projects")
+    .select("id, owner_id")
+    .eq("id", projectId)
+    .single();
+  if (!project) return new Response("Project not found", { status: 404 });
+
+  const { data: membership } = await supabase
+    .from("project_members")
+    .select("id")
+    .eq("project_id", projectId)
+    .eq("profile_id", user.id)
+    .maybeSingle();
+
+  if (project.owner_id !== user.id && !membership) {
+    return new Response("Forbidden", { status: 403 });
+  }
+
   const model = getModel("anthropic", "claude-haiku-4-5-20251001");
 
   const { text } = await generateText({
